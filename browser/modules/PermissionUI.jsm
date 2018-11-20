@@ -66,6 +66,8 @@ ChromeUtils.defineModuleGetter(this, "Services",
   "resource://gre/modules/Services.jsm");
 ChromeUtils.defineModuleGetter(this, "SitePermissions",
   "resource:///modules/SitePermissions.jsm");
+ChromeUtils.defineModuleGetter(this, "TemporaryPermissions",
+  "resource:///modules/SitePermissions.jsm");
 ChromeUtils.defineModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
@@ -135,6 +137,19 @@ var PermissionPromptPrototype = {
    * will be selected automatically.
    */
   get permissionKey() {
+    return undefined;
+  },
+
+  /**
+   * If the nsIPermissionManager is not being queried and written
+   * to for this permission request, but you still would like integration with
+   * infrastructure such as temporary permissions, set this to the dynamic key
+   * to be used.  Different instances of this object must return different
+   * values from this getter if it returns something other than undefined.
+   * If this is undefined, temporary permissions will not be used.
+   * If this.permissionKey is not undefined, this value will be ignored.
+   */
+  get permissionDynamicKey() {
     return undefined;
   },
 
@@ -306,6 +321,21 @@ var PermissionPromptPrototype = {
       // are expired permission states.
       this.browser.dispatchEvent(new this.browser.ownerGlobal
                                          .CustomEvent("PermissionStateChange"));
+    } else if (this.permissionDynamicKey) {
+      // If we're reading a permission which already has a temporary value,
+      // see if we can use the temporary value.
+      let value = TemporaryPermissions.get(this.browser,
+                                           this.permissionDynamicKey);
+
+      if (value) {
+        let state = value.state;
+        if (state == SitePermissions.BLOCK) {
+          // TODO: Add support for showGloballyBlocked
+
+          this.cancel();
+          return;
+        }
+      }
     }
 
     let chromeWin = this.browser.ownerGlobal;
@@ -356,6 +386,16 @@ var PermissionPromptPrototype = {
               this.allow();
             } else {
               this.cancel();
+            }
+          } else if (this.permissionDynamicKey) {
+            // TODO: Add support for permitTemporaryAllow
+            if (promptAction.action == SitePermissions.BLOCK) {
+              // Temporarily store BLOCK permissions.
+              // We don't consider subframes when storing temporary
+              // permissions on a tab, thus storing ALLOW could be exploited.
+              TemporaryPermissions.set(this.browser,
+                                       this.permissionDynamicKey,
+                                       promptAction.action);
             }
           }
         },
