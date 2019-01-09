@@ -238,7 +238,7 @@ class Arena {
    */
   static const size_t DELAYED_MARKING_FLAG_BITS = 3;
   static const size_t DELAYED_MARKING_ARENA_BITS =
-    JS_BITS_PER_WORD - 8 - DELAYED_MARKING_FLAG_BITS;
+      JS_BITS_PER_WORD - 8 - DELAYED_MARKING_FLAG_BITS;
   size_t onDelayedMarkingList_ : 1;
   size_t hasDelayedBlackMarking_ : 1;
   size_t hasDelayedGrayMarking_ : 1;

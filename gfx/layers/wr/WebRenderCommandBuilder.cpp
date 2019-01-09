@@ -2309,8 +2309,7 @@ Maybe<wr::WrImageMask> WebRenderCommandBuilder::BuildWrMaskImage(
 
     recorder->FlushItem(IntRect(0, 0, size.width, size.height));
     TakeExternalSurfaces(recorder, maskData->mExternalSurfaces,
-                         mManager->GetRenderRootStateManager(),
-                         aResources);
+                         mManager->GetRenderRootStateManager(), aResources);
     recorder->Finish();
 
     Range<uint8_t> bytes((uint8_t*)recorder->mOutputStream.mData,

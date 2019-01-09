@@ -712,7 +712,7 @@ struct ParamTraits<mozilla::layers::SimpleLayerAttributes>
 template <>
 struct ParamTraits<mozilla::layers::ScrollUpdateInfo>
     : public PlainOldDataSerializer<mozilla::layers::ScrollUpdateInfo> {};
- 
+
 template <>
 struct ParamTraits<mozilla::layers::CompositionPayloadType>
     : public ContiguousEnumSerializerInclusive<
@@ -721,8 +721,7 @@ struct ParamTraits<mozilla::layers::CompositionPayloadType>
           mozilla::layers::kHighestCompositionPayloadType> {};
 
 template <>
-struct ParamTraits<mozilla::layers::CompositionPayload>
-{
+struct ParamTraits<mozilla::layers::CompositionPayload> {
   typedef mozilla::layers::CompositionPayload paramType;
 
   static void Write(Message* aMsg, const paramType& aParam) {
@@ -730,7 +729,8 @@ struct ParamTraits<mozilla::layers::CompositionPayload>
     WriteParam(aMsg, aParam.mTimeStamp);
   }
 
-  static bool Read(const Message* aMsg, PickleIterator* aIter, paramType* aResult) {
+  static bool Read(const Message* aMsg, PickleIterator* aIter,
+                   paramType* aResult) {
     return ReadParam(aMsg, aIter, &aResult->mType) &&
            ReadParam(aMsg, aIter, &aResult->mTimeStamp);
   }

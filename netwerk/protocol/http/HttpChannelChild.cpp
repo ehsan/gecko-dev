@@ -3813,7 +3813,7 @@ HttpChannelChild::LogMimeTypeMismatch(const nsACString& aMessageName,
 
   nsAutoString url(aURL);
   nsAutoString contentType(aContentType);
-  const char16_t* params[] = { url.get(), contentType.get() };
+  const char16_t* params[] = {url.get(), contentType.get()};
   nsContentUtils::ReportToConsole(
       aWarning ? nsIScriptError::warningFlag : nsIScriptError::errorFlag,
       NS_LITERAL_CSTRING("MIMEMISMATCH"), doc,
