@@ -25,10 +25,10 @@
 
 #include "prenv.h"
 #ifdef XP_WIN
-#include <process.h>
+#  include <process.h>
 #else
-#include <sys/types.h>
-#include <unistd.h>
+#  include <sys/types.h>
+#  include <unistd.h>
 #endif
 
 // NB: Initial amount determined by auditing the codebase for the total amount

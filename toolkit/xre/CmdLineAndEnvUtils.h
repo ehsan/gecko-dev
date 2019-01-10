@@ -10,20 +10,20 @@
 // NB: This code may be used outside of xul and thus must not depend on XPCOM
 
 #if defined(MOZILLA_INTERNAL_API)
-#include "prenv.h"
-#include "prprf.h"
-#include <string.h>
+#  include "prenv.h"
+#  include "prprf.h"
+#  include <string.h>
 #elif defined(XP_WIN)
-#include <stdlib.h>
+#  include <stdlib.h>
 #endif
 
 #if defined(XP_WIN)
-#include "mozilla/Move.h"
-#include "mozilla/UniquePtr.h"
-#include "mozilla/Vector.h"
+#  include "mozilla/Move.h"
+#  include "mozilla/UniquePtr.h"
+#  include "mozilla/Vector.h"
 
-#include <wchar.h>
-#include <windows.h>
+#  include <wchar.h>
+#  include <windows.h>
 #endif  // defined(XP_WIN)
 
 #include "mozilla/MemoryChecking.h"
@@ -411,7 +411,7 @@ MOZ_NEVER_INLINE inline void SaveToEnv(const char* aEnvString) {
   // copy)
   _putenv(aEnvString);
 #else
-#error "Not implemented for this configuration"
+#  error "Not implemented for this configuration"
 #endif
 }
 
@@ -424,7 +424,7 @@ inline bool EnvHasValue(const char* aVarName) {
   const char* val = getenv(aVarName);
   return val && *val;
 #else
-#error "Not implemented for this configuration"
+#  error "Not implemented for this configuration"
 #endif
 }
 

@@ -13,7 +13,7 @@
 #include "mozilla/ipc/ProcessChild.h"
 
 #if defined(XP_WIN)
-#include "mozilla/gfx/DeviceManagerDx.h"
+#  include "mozilla/gfx/DeviceManagerDx.h"
 #endif
 
 namespace mozilla {

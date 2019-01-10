@@ -34,7 +34,7 @@
 #include "nsAutoPtr.h"
 #include "mozilla/MemoryReporting.h"
 #ifdef LOG
-#undef LOG
+#  undef LOG
 #endif
 #include "base/condition_variable.h"
 #include "base/lock.h"

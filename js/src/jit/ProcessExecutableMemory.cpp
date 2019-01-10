@@ -21,7 +21,7 @@
 
 #include "gc/Memory.h"
 #ifdef JS_CODEGEN_ARM64
-#include "jit/arm64/vixl/Cpu-vixl.h"
+#  include "jit/arm64/vixl/Cpu-vixl.h"
 #endif
 #include "threading/LockGuard.h"
 #include "threading/Mutex.h"
@@ -29,15 +29,15 @@
 #include "vm/MutexIDs.h"
 
 #ifdef XP_WIN
-#include "mozilla/StackWalk_windows.h"
-#include "mozilla/WindowsVersion.h"
+#  include "mozilla/StackWalk_windows.h"
+#  include "mozilla/WindowsVersion.h"
 #else
-#include <sys/mman.h>
-#include <unistd.h>
+#  include <sys/mman.h>
+#  include <unistd.h>
 #endif
 
 #ifdef MOZ_VALGRIND
-#include <valgrind/valgrind.h>
+#  include <valgrind/valgrind.h>
 #endif
 
 using namespace js;
@@ -45,9 +45,9 @@ using namespace js::jit;
 
 #ifdef XP_WIN
 // TODO: implement the necessary support for AArch64.
-#if defined(HAVE_64BIT_BUILD) && defined(_M_X64)
-#define NEED_JIT_UNWIND_HANDLING
-#endif
+#  if defined(HAVE_64BIT_BUILD) && defined(_M_X64)
+#    define NEED_JIT_UNWIND_HANDLING
+#  endif
 
 static void* ComputeRandomAllocationAddress() {
   /*
@@ -61,21 +61,21 @@ static void* ComputeRandomAllocationAddress() {
    * bits of randomness in our selection.
    * x64: [2GiB, 4TiB), with 25 bits of randomness.
    */
-#ifdef HAVE_64BIT_BUILD
+#  ifdef HAVE_64BIT_BUILD
   static const uintptr_t base = 0x0000000080000000;
   static const uintptr_t mask = 0x000003ffffff0000;
-#elif defined(_M_IX86) || defined(__i386__)
+#  elif defined(_M_IX86) || defined(__i386__)
   static const uintptr_t base = 0x04000000;
   static const uintptr_t mask = 0x3fff0000;
-#else
-#error "Unsupported architecture"
-#endif
+#  else
+#    error "Unsupported architecture"
+#  endif
 
   uint64_t rand = js::GenerateRandomSeed();
   return (void*)(base | (rand & mask));
 }
 
-#ifdef NEED_JIT_UNWIND_HANDLING
+#  ifdef NEED_JIT_UNWIND_HANDLING
 static js::JitExceptionHandler sJitExceptionHandler;
 
 JS_FRIEND_API void js::SetJitExceptionHandler(JitExceptionHandler handler) {
@@ -175,15 +175,15 @@ static void UnregisterExecutableMemory(void* p, size_t bytes, size_t pageSize) {
   AutoSuppressStackWalking suppress;
   RtlDeleteFunctionTable(&r->runtimeFunction);
 }
-#endif
+#  endif
 
 static void* ReserveProcessExecutableMemory(size_t bytes) {
-#ifdef NEED_JIT_UNWIND_HANDLING
+#  ifdef NEED_JIT_UNWIND_HANDLING
   size_t pageSize = gc::SystemPageSize();
   if (sJitExceptionHandler) {
     bytes += pageSize;
   }
-#endif
+#  endif
 
   void* p = nullptr;
   for (size_t i = 0; i < 10; i++) {
@@ -202,7 +202,7 @@ static void* ReserveProcessExecutableMemory(size_t bytes) {
     }
   }
 
-#ifdef NEED_JIT_UNWIND_HANDLING
+#  ifdef NEED_JIT_UNWIND_HANDLING
   if (sJitExceptionHandler) {
     if (!RegisterExecutableMemory(p, bytes, pageSize)) {
       VirtualFree(p, 0, MEM_RELEASE);
@@ -214,13 +214,13 @@ static void* ReserveProcessExecutableMemory(size_t bytes) {
   }
 
   RegisterJitCodeRegion((uint8_t*)p, bytes);
-#endif
+#  endif
 
   return p;
 }
 
 static void DeallocateProcessExecutableMemory(void* addr, size_t bytes) {
-#ifdef NEED_JIT_UNWIND_HANDLING
+#  ifdef NEED_JIT_UNWIND_HANDLING
   UnregisterJitCodeRegion((uint8_t*)addr, bytes);
 
   if (sJitExceptionHandler) {
@@ -228,7 +228,7 @@ static void DeallocateProcessExecutableMemory(void* addr, size_t bytes) {
     addr = (uint8_t*)addr - pageSize;
     UnregisterExecutableMemory(addr, bytes, pageSize);
   }
-#endif
+#  endif
 
   VirtualFree(addr, 0, MEM_RELEASE);
 }
@@ -265,19 +265,19 @@ static void DecommitPages(void* addr, size_t bytes) {
 static void* ComputeRandomAllocationAddress() {
   uint64_t rand = js::GenerateRandomSeed();
 
-#ifdef HAVE_64BIT_BUILD
+#  ifdef HAVE_64BIT_BUILD
   // x64 CPUs have a 48-bit address space and on some platforms the OS will
   // give us access to 47 bits, so to be safe we right shift by 18 to leave
   // 46 bits.
   rand >>= 18;
-#else
+#  else
   // On 32-bit, right shift by 34 to leave 30 bits, range [0, 1GiB). Then add
   // 512MiB to get range [512MiB, 1.5GiB), or [0x20000000, 0x60000000). This
   // is based on V8 comments in platform-posix.cc saying this range is
   // relatively unpopulated across a variety of kernels.
   rand >>= 34;
   rand += 512 * 1024 * 1024;
-#endif
+#  endif
 
   // Ensure page alignment.
   uintptr_t mask = ~uintptr_t(gc::SystemPageSize() - 1);
@@ -303,7 +303,7 @@ static void DeallocateProcessExecutableMemory(void* addr, size_t bytes) {
 }
 
 static unsigned ProtectionSettingToFlags(ProtectionSetting protection) {
-#ifdef MOZ_VALGRIND
+#  ifdef MOZ_VALGRIND
   // If we're configured for Valgrind and running on it, use a slacker
   // scheme that doesn't change execute permissions, since doing so causes
   // Valgrind a lot of extra overhead re-JITting code that loses and later
@@ -321,7 +321,7 @@ static unsigned ProtectionSettingToFlags(ProtectionSetting protection) {
   }
   // If we get here, we're configured for Valgrind but not running on
   // it, so use the standard scheme.
-#endif
+#  endif
   switch (protection) {
     case ProtectionSetting::Protected:
       return PROT_NONE;

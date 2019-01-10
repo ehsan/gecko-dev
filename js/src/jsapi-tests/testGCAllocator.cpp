@@ -12,32 +12,32 @@
 #include "jsapi-tests/tests.h"
 
 #if defined(XP_WIN)
-#include "util/Windows.h"
-#include <psapi.h>
+#  include "util/Windows.h"
+#  include <psapi.h>
 #elif defined(SOLARIS)
 // This test doesn't apply to Solaris.
 #elif defined(XP_UNIX)
-#include <algorithm>
-#include <errno.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#  include <algorithm>
+#  include <errno.h>
+#  include <sys/mman.h>
+#  include <sys/resource.h>
+#  include <sys/stat.h>
+#  include <sys/types.h>
+#  include <unistd.h>
 #else
-#error "Memory mapping functions are not defined for your OS."
+#  error "Memory mapping functions are not defined for your OS."
 #endif
 
 BEGIN_TEST(testGCAllocator) {
   size_t PageSize = 0;
 #if defined(XP_WIN)
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#  if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
   SYSTEM_INFO sysinfo;
   GetSystemInfo(&sysinfo);
   PageSize = sysinfo.dwPageSize;
-#else  // Various APIs are unavailable. This test is disabled.
+#  else  // Various APIs are unavailable. This test is disabled.
   return true;
-#endif
+#  endif
 #elif defined(SOLARIS)
   return true;
 #elif defined(XP_UNIX)
@@ -293,7 +293,7 @@ bool positionIsCorrect(const char* str, void* base, void** chunkPool,
 }
 
 #if defined(XP_WIN)
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#  if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 
 void* mapMemoryAt(void* desired, size_t length) {
   return VirtualAlloc(desired, length, MEM_COMMIT | MEM_RESERVE,
@@ -309,13 +309,13 @@ void unmapPages(void* p, size_t size) {
   MOZ_ALWAYS_TRUE(VirtualFree(p, 0, MEM_RELEASE));
 }
 
-#else  // Various APIs are unavailable. This test is disabled.
+#  else  // Various APIs are unavailable. This test is disabled.
 
 void* mapMemoryAt(void* desired, size_t length) { return nullptr; }
 void* mapMemory(size_t length) { return nullptr; }
 void unmapPages(void* p, size_t size) {}
 
-#endif
+#  endif
 #elif defined(SOLARIS)  // This test doesn't apply to Solaris.
 
 void* mapMemoryAt(void* desired, size_t length) { return nullptr; }
@@ -326,12 +326,12 @@ void unmapPages(void* p, size_t size) {}
 
 void* mapMemoryAt(void* desired, size_t length) {
 
-#if defined(__ia64__) || defined(__aarch64__) ||  \
-    (defined(__sparc__) && defined(__arch64__) && \
-     (defined(__NetBSD__) || defined(__linux__)))
+#  if defined(__ia64__) || defined(__aarch64__) ||  \
+      (defined(__sparc__) && defined(__arch64__) && \
+       (defined(__NetBSD__) || defined(__linux__)))
   MOZ_RELEASE_ASSERT(
       (0xffff800000000000ULL & (uintptr_t(desired) + length - 1)) == 0);
-#endif
+#  endif
   void* region = mmap(desired, length, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_ANON, -1, 0);
   if (region == MAP_FAILED) {
@@ -352,8 +352,8 @@ void* mapMemory(size_t length) {
   int fd = -1;
   off_t offset = 0;
   // The test code must be aligned with the implementation in gc/Memory.cpp.
-#if defined(__ia64__) || \
-    (defined(__sparc__) && defined(__arch64__) && defined(__NetBSD__))
+#  if defined(__ia64__) || \
+      (defined(__sparc__) && defined(__arch64__) && defined(__NetBSD__))
   void* region =
       mmap((void*)0x0000070000000000, length, prot, flags, fd, offset);
   if (region == MAP_FAILED) {
@@ -366,8 +366,8 @@ void* mapMemory(size_t length) {
     return nullptr;
   }
   return region;
-#elif defined(__aarch64__) || \
-    (defined(__sparc__) && defined(__arch64__) && defined(__linux__))
+#  elif defined(__aarch64__) || \
+      (defined(__sparc__) && defined(__arch64__) && defined(__linux__))
   const uintptr_t start = UINT64_C(0x0000070000000000);
   const uintptr_t end = UINT64_C(0x0000800000000000);
   const uintptr_t step = js::gc::ChunkSize;
@@ -386,13 +386,13 @@ void* mapMemory(size_t length) {
     }
   }
   return region == MAP_FAILED ? nullptr : region;
-#else
+#  else
   void* region = mmap(nullptr, length, prot, flags, fd, offset);
   if (region == MAP_FAILED) {
     return nullptr;
   }
   return region;
-#endif
+#  endif
 }
 
 void unmapPages(void* p, size_t size) {
@@ -402,6 +402,6 @@ void unmapPages(void* p, size_t size) {
 }
 
 #else  // !defined(XP_WIN) && !defined(SOLARIS) && !defined(XP_UNIX)
-#error "Memory mapping functions are not defined for your OS."
+#  error "Memory mapping functions are not defined for your OS."
 #endif
 END_TEST(testGCAllocator)

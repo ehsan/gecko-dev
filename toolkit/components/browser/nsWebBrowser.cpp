@@ -44,8 +44,8 @@
 
 // Printing Includes
 #ifdef NS_PRINTING
-#include "nsIWebBrowserPrint.h"
-#include "nsIContentViewer.h"
+#  include "nsIWebBrowserPrint.h"
+#  include "nsIContentViewer.h"
 #endif
 
 // PSM2 includes

@@ -14,12 +14,12 @@
 #include "nsIDragService.h"
 #include "nsIDragSession.h"
 #ifdef MOZ_XUL
-#include "nsITreeView.h"
+#  include "nsITreeView.h"
 #endif
 #include "nsIScriptContext.h"
 #include "nsPIDOMWindow.h"
 #ifdef MOZ_XUL
-#include "nsXULPopupManager.h"
+#  include "nsXULPopupManager.h"
 #endif
 #include "nsIPopupContainer.h"
 #include "nsIBoxObject.h"
@@ -436,7 +436,7 @@ nsresult nsXULTooltipListener::ShowTooltip() {
 #ifdef MOZ_XUL
 // XXX: "This stuff inside DEBUG_crap could be used to make tree tooltips work
 //       in the future."
-#ifdef DEBUG_crap
+#  ifdef DEBUG_crap
 static void GetTreeCellCoords(nsITreeBoxObject* aTreeBox,
                               nsIContent* aSourceNode, int32_t aRow,
                               nsTreeColumn* aCol, int32_t* aX, int32_t* aY) {
@@ -451,7 +451,7 @@ static void GetTreeCellCoords(nsITreeBoxObject* aTreeBox,
   *aX += myX;
   *aY += myY;
 }
-#endif
+#  endif
 
 static void SetTitletipLabel(nsITreeBoxObject* aTreeBox, Element* aTooltip,
                              int32_t aRow, nsTreeColumn* aCol) {
@@ -459,9 +459,9 @@ static void SetTitletipLabel(nsITreeBoxObject* aTreeBox, Element* aTooltip,
   aTreeBox->GetView(getter_AddRefs(view));
   if (view) {
     nsAutoString label;
-#ifdef DEBUG
+#  ifdef DEBUG
     nsresult rv =
-#endif
+#  endif
         view->GetCellText(aRow, aCol, label);
     NS_WARNING_ASSERTION(NS_SUCCEEDED(rv), "Couldn't get the cell text!");
     aTooltip->SetAttr(kNameSpaceID_None, nsGkAtoms::label, label, true);

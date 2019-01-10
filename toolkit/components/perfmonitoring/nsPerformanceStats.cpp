@@ -32,22 +32,22 @@
 #include "mozilla/Telemetry.h"
 
 #if defined(XP_WIN)
-#include <processthreadsapi.h>
-#include <windows.h>
+#  include <processthreadsapi.h>
+#  include <windows.h>
 #else
-#include <unistd.h>
+#  include <unistd.h>
 #endif  // defined(XP_WIN)
 
 #if defined(XP_MACOSX)
-#include <mach/mach_init.h>
-#include <mach/mach_interface.h>
-#include <mach/mach_port.h>
-#include <mach/mach_types.h>
-#include <mach/message.h>
-#include <mach/thread_info.h>
+#  include <mach/mach_init.h>
+#  include <mach/mach_interface.h>
+#  include <mach/mach_port.h>
+#  include <mach/mach_types.h>
+#  include <mach/message.h>
+#  include <mach/thread_info.h>
 #elif defined(XP_UNIX)
-#include <sys/time.h>
-#include <sys/resource.h>
+#  include <sys/time.h>
+#  include <sys/resource.h>
 #endif  // defined(XP_UNIX)
 /* ------------------------------------------------------
  *
@@ -1189,14 +1189,14 @@ nsresult nsPerformanceStatsService::GetResources(uint64_t* userTime,
 
 #elif defined(XP_UNIX)
   struct rusage rusage;
-#if defined(RUSAGE_THREAD)
+#  if defined(RUSAGE_THREAD)
   // Under Linux, we can obtain per-thread statistics
   int err = getrusage(RUSAGE_THREAD, &rusage);
-#else
+#  else
   // Under other Unices, we need to do with more noisy
   // per-process statistics.
   int err = getrusage(RUSAGE_SELF, &rusage);
-#endif  // defined(RUSAGE_THREAD)
+#  endif  // defined(RUSAGE_THREAD)
 
   if (err) return NS_ERROR_FAILURE;
 

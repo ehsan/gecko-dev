@@ -14,24 +14,24 @@
 
 #if defined(XP_WIN)
 
-#include "mozilla/Sprintf.h"
-#include "util/Windows.h"
-#include <psapi.h>
+#  include "mozilla/Sprintf.h"
+#  include "util/Windows.h"
+#  include <psapi.h>
 
 #elif defined(SOLARIS)
 
-#include <sys/mman.h>
-#include <unistd.h>
+#  include <sys/mman.h>
+#  include <unistd.h>
 
 #elif defined(XP_UNIX)
 
-#include <algorithm>
-#include <errno.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#  include <algorithm>
+#  include <errno.h>
+#  include <sys/mman.h>
+#  include <sys/resource.h>
+#  include <sys/stat.h>
+#  include <sys/types.h>
+#  include <unistd.h>
 
 #endif
 
@@ -92,7 +92,7 @@ void InitMemorySubsystem() {
   }
 }
 
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#  if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 
 static inline void* MapMemoryAt(void* desired, size_t length, int flags,
                                 int prot = PAGE_READWRITE) {
@@ -317,7 +317,7 @@ void* AllocateMappedContent(int fd, size_t offset, size_t length,
     return nullptr;
   }
 
-#ifdef DEBUG
+#    ifdef DEBUG
   // Zero out data before and after the desired mapping to catch errors early.
   if (offset != alignedOffset) {
     memset(map, 0, offset - alignedOffset);
@@ -325,7 +325,7 @@ void* AllocateMappedContent(int fd, size_t offset, size_t length,
   if (alignedLength % pageSize) {
     memset(map + alignedLength, 0, pageSize - (alignedLength % pageSize));
   }
-#endif
+#    endif
 
   return map + (offset - alignedOffset);
 }
@@ -343,7 +343,7 @@ void DeallocateMappedContent(void* p, size_t /*length*/) {
   MOZ_ALWAYS_TRUE(UnmapViewOfFile(reinterpret_cast<void*>(map)));
 }
 
-#else  // Various APIs are unavailable.
+#  else  // Various APIs are unavailable.
 
 void* MapAlignedPages(size_t size, size_t alignment) {
   MOZ_ASSERT(size >= alignment);
@@ -399,13 +399,13 @@ void DeallocateMappedContent(void* p, size_t length) {
   // Not implemented.
 }
 
-#endif
+#  endif
 
 #elif defined(SOLARIS)
 
-#ifndef MAP_NOSYNC
-#define MAP_NOSYNC 0
-#endif
+#  ifndef MAP_NOSYNC
+#    define MAP_NOSYNC 0
+#  endif
 
 void InitMemorySubsystem() {
   if (pageSize == 0) {
@@ -486,11 +486,11 @@ static inline void* MapMemoryAt(void* desired, size_t length,
                                 int flags = MAP_PRIVATE | MAP_ANON, int fd = -1,
                                 off_t offset = 0) {
 
-#if defined(__ia64__) || defined(__aarch64__) ||  \
-    (defined(__sparc__) && defined(__arch64__) && \
-     (defined(__NetBSD__) || defined(__linux__)))
+#  if defined(__ia64__) || defined(__aarch64__) ||  \
+      (defined(__sparc__) && defined(__arch64__) && \
+       (defined(__NetBSD__) || defined(__linux__)))
   MOZ_ASSERT((0xffff800000000000ULL & (uintptr_t(desired) + length - 1)) == 0);
-#endif
+#  endif
   void* region = mmap(desired, length, prot, flags, fd, offset);
   if (region == MAP_FAILED) {
     return nullptr;
@@ -512,8 +512,8 @@ static inline void* MapMemoryAt(void* desired, size_t length,
 static inline void* MapMemory(size_t length, int prot = PROT_READ | PROT_WRITE,
                               int flags = MAP_PRIVATE | MAP_ANON, int fd = -1,
                               off_t offset = 0) {
-#if defined(__ia64__) || \
-    (defined(__sparc__) && defined(__arch64__) && defined(__NetBSD__))
+#  if defined(__ia64__) || \
+      (defined(__sparc__) && defined(__arch64__) && defined(__NetBSD__))
   /*
    * The JS engine assumes that all allocated pointers have their high 17 bits
    * clear, which ia64's mmap doesn't support directly. However, we can emulate
@@ -543,8 +543,8 @@ static inline void* MapMemory(size_t length, int prot = PROT_READ | PROT_WRITE,
     return nullptr;
   }
   return region;
-#elif defined(__aarch64__) || \
-    (defined(__sparc__) && defined(__arch64__) && defined(__linux__))
+#  elif defined(__aarch64__) || \
+      (defined(__sparc__) && defined(__arch64__) && defined(__linux__))
   /*
    * There might be similar virtual address issue on arm64 which depends on
    * hardware and kernel configurations. But the work around is slightly
@@ -580,14 +580,14 @@ static inline void* MapMemory(size_t length, int prot = PROT_READ | PROT_WRITE,
     }
   }
   return region == MAP_FAILED ? nullptr : region;
-#else
+#  else
   void* region = MozTaggedAnonymousMmap(nullptr, length, prot, flags, fd,
                                         offset, "js-gc-heap");
   if (region == MAP_FAILED) {
     return nullptr;
   }
   return region;
-#endif
+#  endif
 }
 
 void* MapAlignedPages(size_t size, size_t alignment) {
@@ -772,11 +772,11 @@ bool MarkPagesUnused(void* p, size_t size) {
   }
 
   MOZ_ASSERT(OffsetFromAligned(p, pageSize) == 0);
-#if defined(XP_SOLARIS)
+#  if defined(XP_SOLARIS)
   int result = posix_madvise(p, size, POSIX_MADV_DONTNEED);
-#else
+#  else
   int result = madvise(p, size, MADV_DONTNEED);
-#endif
+#  endif
   return result != -1;
 }
 
@@ -829,7 +829,7 @@ void* AllocateMappedContent(int fd, size_t offset, size_t length,
     return nullptr;
   }
 
-#ifdef DEBUG
+#  ifdef DEBUG
   // Zero out data before and after the desired mapping to catch errors early.
   if (offset != alignedOffset) {
     memset(map, 0, offset - alignedOffset);
@@ -837,7 +837,7 @@ void* AllocateMappedContent(int fd, size_t offset, size_t length,
   if (alignedLength % pageSize) {
     memset(map + alignedLength, 0, pageSize - (alignedLength % pageSize));
   }
-#endif
+#  endif
 
   return map + (offset - alignedOffset);
 }
@@ -857,7 +857,7 @@ void DeallocateMappedContent(void* p, size_t length) {
 }
 
 #else
-#error "Memory mapping functions are not defined for your OS."
+#  error "Memory mapping functions are not defined for your OS."
 #endif
 
 void ProtectPages(void* p, size_t size) {

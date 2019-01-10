@@ -48,7 +48,7 @@
 #include "nsDisplayItemTypes.h"
 
 #ifdef ACCESSIBILITY
-#include "mozilla/a11y/AccTypes.h"
+#  include "mozilla/a11y/AccTypes.h"
 #endif
 
 /**

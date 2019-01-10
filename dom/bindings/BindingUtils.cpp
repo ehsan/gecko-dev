@@ -1608,8 +1608,8 @@ static void DEBUG_CheckXBLLookup(JSContext* cx, JS::PropertyDescriptor* desc) {
   }
 }
 #else
-#define DEBUG_CheckXBLLookup(a, b) \
-  {}
+#  define DEBUG_CheckXBLLookup(a, b) \
+    {}
 #endif
 
 /* static */ bool XrayResolveOwnProperty(

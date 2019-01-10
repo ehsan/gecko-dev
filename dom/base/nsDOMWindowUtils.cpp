@@ -64,8 +64,8 @@
 #include <algorithm>
 
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK)
-#include <gdk/gdk.h>
-#include <gdk/gdkx.h>
+#  include <gdk/gdk.h>
+#  include <gdk/gdkx.h>
 #endif
 
 #include "Layers.h"
@@ -118,7 +118,7 @@
 #include "mozilla/layers/WebRenderLayerManager.h"
 
 #ifdef XP_WIN
-#undef GetClassName
+#  undef GetClassName
 #endif
 
 using namespace mozilla;

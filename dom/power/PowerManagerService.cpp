@@ -17,9 +17,9 @@
 
 // For _exit().
 #ifdef XP_WIN
-#include <process.h>
+#  include <process.h>
 #else
-#include <unistd.h>
+#  include <unistd.h>
 #endif
 
 namespace mozilla {

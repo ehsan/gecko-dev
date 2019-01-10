@@ -11,7 +11,7 @@
 #include "mozilla/Unused.h"
 
 #if defined(XP_WIN)
-#include <processthreadsapi.h>
+#  include <processthreadsapi.h>
 #endif  // defined(XP_WIN)
 
 #include "gc/PublicIterators.h"

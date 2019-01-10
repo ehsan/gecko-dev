@@ -13,11 +13,11 @@
 #include "nsProfileLock.h"
 
 #ifdef XP_WIN
-#include <windows.h>
-#include <shlobj.h>
+#  include <windows.h>
+#  include <shlobj.h>
 #endif
 #ifdef XP_UNIX
-#include <unistd.h>
+#  include <unistd.h>
 #endif
 
 #include "nsIToolkitProfileService.h"
@@ -27,8 +27,8 @@
 #include "nsSimpleEnumerator.h"
 
 #ifdef XP_MACOSX
-#include <CoreFoundation/CoreFoundation.h>
-#include "nsILocalFileMac.h"
+#  include <CoreFoundation/CoreFoundation.h>
+#  include "nsILocalFileMac.h"
 #endif
 
 #include "nsAppDirectoryServiceDefs.h"
@@ -920,6 +920,6 @@ nsresult XRE_GetFileFromPath(const char* aPath, nsIFile** aResult) {
   return NS_NewLocalFile(nsDependentString(fullPath), true, aResult);
 
 #else
-#error Platform-specific logic needed here.
+#  error Platform-specific logic needed here.
 #endif
 }

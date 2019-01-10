@@ -29,8 +29,8 @@
 #include "mozilla/net/RequestContextService.h"
 #include "mozilla/net/TrackingDummyChannelParent.h"
 #ifdef MOZ_WEBRTC
-#include "mozilla/net/StunAddrsRequestParent.h"
-#include "mozilla/net/WebrtcProxyChannelParent.h"
+#  include "mozilla/net/StunAddrsRequestParent.h"
+#  include "mozilla/net/WebrtcProxyChannelParent.h"
 #endif
 #include "mozilla/dom/ChromeUtils.h"
 #include "mozilla/dom/ContentParent.h"

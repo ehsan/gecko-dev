@@ -8,8 +8,8 @@
 #define mozilla_NativeNt_h
 
 #if defined(MOZILLA_INTERNAL_API)
-#error \
-    "This header is for initial process initialization. You don't want to be including this here."
+#  error \
+      "This header is for initial process initialization. You don't want to be including this here."
 #endif  // defined(MOZILLA_INTERNAL_API)
 
 #include <stdint.h>
@@ -25,11 +25,11 @@
 extern "C" {
 
 #if !defined(STATUS_ACCESS_DENIED)
-#define STATUS_ACCESS_DENIED ((NTSTATUS)0xC0000022L)
+#  define STATUS_ACCESS_DENIED ((NTSTATUS)0xC0000022L)
 #endif  // !defined(STATUS_ACCESS_DENIED)
 
 #if !defined(STATUS_DLL_NOT_FOUND)
-#define STATUS_DLL_NOT_FOUND ((NTSTATUS)0xC0000135L)
+#  define STATUS_DLL_NOT_FOUND ((NTSTATUS)0xC0000135L)
 #endif  // !defined(STATUS_DLL_NOT_FOUND)
 
 enum SECTION_INHERIT { ViewShare = 1, ViewUnmap = 2 };

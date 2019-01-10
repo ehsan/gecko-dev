@@ -2256,7 +2256,7 @@ MachineState MachineState::FromBailout(RegisterDump::GPRArray& regs,
 #elif defined(JS_CODEGEN_NONE)
   MOZ_CRASH();
 #else
-#error "Unknown architecture!"
+#  error "Unknown architecture!"
 #endif
   return machine;
 }

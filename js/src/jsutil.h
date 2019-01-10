@@ -24,14 +24,14 @@
 #include "js/Value.h"
 
 #if defined(JS_DEBUG)
-#define JS_DIAGNOSTICS_ASSERT(expr) MOZ_ASSERT(expr)
+#  define JS_DIAGNOSTICS_ASSERT(expr) MOZ_ASSERT(expr)
 #elif defined(JS_CRASH_DIAGNOSTICS)
-#define JS_DIAGNOSTICS_ASSERT(expr)         \
-  do {                                      \
-    if (MOZ_UNLIKELY(!(expr))) MOZ_CRASH(); \
-  } while (0)
+#  define JS_DIAGNOSTICS_ASSERT(expr)         \
+    do {                                      \
+      if (MOZ_UNLIKELY(!(expr))) MOZ_CRASH(); \
+    } while (0)
 #else
-#define JS_DIAGNOSTICS_ASSERT(expr) ((void)0)
+#  define JS_DIAGNOSTICS_ASSERT(expr) ((void)0)
 #endif
 
 static MOZ_ALWAYS_INLINE void* js_memcpy(void* dst_, const void* src_,
@@ -252,13 +252,13 @@ const uint8_t JS_FRESH_MARK_STACK_PATTERN = 0x9F;
  */
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64) || \
     defined(JS_CODEGEN_NONE)
-#define JS_SWEPT_CODE_PATTERN 0xED  // IN instruction, crashes in user mode.
+#  define JS_SWEPT_CODE_PATTERN 0xED  // IN instruction, crashes in user mode.
 #elif defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_ARM64)
-#define JS_SWEPT_CODE_PATTERN 0xA3  // undefined instruction
+#  define JS_SWEPT_CODE_PATTERN 0xA3  // undefined instruction
 #elif defined(JS_CODEGEN_MIPS32) || defined(JS_CODEGEN_MIPS64)
-#define JS_SWEPT_CODE_PATTERN 0x01  // undefined instruction
+#  define JS_SWEPT_CODE_PATTERN 0x01  // undefined instruction
 #else
-#error "JS_SWEPT_CODE_PATTERN not defined for this platform"
+#  error "JS_SWEPT_CODE_PATTERN not defined for this platform"
 #endif
 
 enum class MemCheckKind : uint8_t {
@@ -297,9 +297,9 @@ static inline void AlwaysPoison(void* ptr, uint8_t value, size_t num,
 #if defined(DEBUG)
   uintptr_t poison;
   memset(&poison, value, sizeof(poison));
-#if defined(JS_PUNBOX64)
+#  if defined(JS_PUNBOX64)
   poison = poison & ((uintptr_t(1) << JSVAL_TAG_SHIFT) - 1);
-#endif
+#  endif
   JS::Value v = js::PoisonedObjectValue(poison);
 
   size_t value_count = num / sizeof(v);
@@ -331,22 +331,22 @@ static inline void Poison(void* ptr, uint8_t value, size_t num,
 
 /* Crash diagnostics by default in debug and on nightly channel. */
 #if defined(DEBUG) || defined(NIGHTLY_BUILD)
-#define JS_CRASH_DIAGNOSTICS 1
+#  define JS_CRASH_DIAGNOSTICS 1
 #endif
 
 /* Enable poisoning in crash-diagnostics and zeal builds. */
 #if defined(JS_CRASH_DIAGNOSTICS) || defined(JS_GC_ZEAL)
-#define JS_POISON(p, val, size, kind) js::Poison(p, val, size, kind)
-#define JS_GC_POISONING 1
+#  define JS_POISON(p, val, size, kind) js::Poison(p, val, size, kind)
+#  define JS_GC_POISONING 1
 #else
-#define JS_POISON(p, val, size, kind) ((void)0)
+#  define JS_POISON(p, val, size, kind) ((void)0)
 #endif
 
 /* Enable even more poisoning in purely debug builds. */
 #if defined(DEBUG)
-#define JS_EXTRA_POISON(p, val, size, kind) js::Poison(p, val, size, kind)
+#  define JS_EXTRA_POISON(p, val, size, kind) js::Poison(p, val, size, kind)
 #else
-#define JS_EXTRA_POISON(p, val, size, kind) ((void)0)
+#  define JS_EXTRA_POISON(p, val, size, kind) ((void)0)
 #endif
 
 #endif /* jsutil_h */

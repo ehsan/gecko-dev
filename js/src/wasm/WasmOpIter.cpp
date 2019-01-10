@@ -25,28 +25,28 @@ using namespace js::wasm;
 #ifdef ENABLE_WASM_GENERALIZED_TABLES
 // Actually we depend only on the reftypes proposal; this guard will change once
 // reftypes and GC are pried apart properly.
-#ifndef ENABLE_WASM_GC
-#error "Generalized tables require the GC feature"
-#endif
+#  ifndef ENABLE_WASM_GC
+#    error "Generalized tables require the GC feature"
+#  endif
 #endif
 
 #ifdef DEBUG
 
-#ifdef ENABLE_WASM_GC
-#define WASM_GC_OP(code) return code
-#else
-#define WASM_GC_OP(code) break
-#endif
-#ifdef ENABLE_WASM_BULKMEM_OPS
-#define WASM_BULK_OP(code) return code
-#else
-#define WASM_BULK_OP(code) break
-#endif
-#ifdef ENABLE_WASM_GENERALIZED_TABLES
-#define WASM_TABLE_OP(code) return code
-#else
-#define WASM_TABLE_OP(code) break
-#endif
+#  ifdef ENABLE_WASM_GC
+#    define WASM_GC_OP(code) return code
+#  else
+#    define WASM_GC_OP(code) break
+#  endif
+#  ifdef ENABLE_WASM_BULKMEM_OPS
+#    define WASM_BULK_OP(code) return code
+#  else
+#    define WASM_BULK_OP(code) break
+#  endif
+#  ifdef ENABLE_WASM_GENERALIZED_TABLES
+#    define WASM_TABLE_OP(code) return code
+#  else
+#    define WASM_TABLE_OP(code) break
+#  endif
 
 OpKind wasm::Classify(OpBytes op) {
   switch (Op(op.b0)) {
@@ -440,8 +440,8 @@ OpKind wasm::Classify(OpBytes op) {
   MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("unimplemented opcode");
 }
 
-#undef WASM_GC_OP
-#undef WASM_BULK_OP
-#undef WASM_TABLE_OP
+#  undef WASM_GC_OP
+#  undef WASM_BULK_OP
+#  undef WASM_TABLE_OP
 
 #endif

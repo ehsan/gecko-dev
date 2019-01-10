@@ -14,7 +14,7 @@
 
 #include <string.h>
 #ifndef XP_WIN
-#include <sys/mman.h>
+#  include <sys/mman.h>
 #endif
 
 #include "jsapi.h"
