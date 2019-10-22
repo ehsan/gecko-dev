@@ -524,6 +524,7 @@ LOCAL_INCLUDES += [
     '/layout/svg',
     '/layout/xul',
     '/netwerk/base',
+    '/netwerk/protocol/http',
     '/netwerk/url-classifier',
     '/security/manager/ssl',
     '/widget',

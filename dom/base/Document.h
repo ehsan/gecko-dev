@@ -1419,6 +1419,8 @@ class Document : public nsINode,
   //
   already_AddRefed<nsSimpleContentList> BlockedNodesByClassifier() const;
 
+  void SetChannelCanonicalHostName(const nsAString& aName);
+
   // Helper method that returns true if the document has storage-access sandbox
   // flag.
   bool StorageAccessSandboxed() const;

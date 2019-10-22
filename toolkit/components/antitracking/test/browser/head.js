@@ -18,6 +18,8 @@ const TEST_3RD_PARTY_DOMAIN_STP = "https://social-tracking.example.org/";
 const TEST_4TH_PARTY_DOMAIN = "http://not-tracking.example.com/";
 const TEST_ANOTHER_3RD_PARTY_DOMAIN = "https://another-tracking.example.net/";
 
+const TEST_3RD_PARTY_DOMAIN_SUBDOMAIN = "subdomain.example.org";
+
 const TEST_PATH = "browser/toolkit/components/antitracking/test/browser/";
 
 const TEST_TOP_PAGE = TEST_DOMAIN + TEST_PATH + "page.html";

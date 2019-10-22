@@ -129,6 +129,7 @@
 #include "mozilla/dom/SVGUseElement.h"
 #include "mozilla/dom/UserActivation.h"
 #include "mozilla/net/CookieJarSettings.h"
+#include "mozilla/net/HttpBaseChannel.h"
 #include "nsGenericHTMLElement.h"
 #include "mozilla/dom/CDATASection.h"
 #include "mozilla/dom/ProcessingInstruction.h"
@@ -9200,6 +9201,16 @@ void Document::GetCompatMode(nsString& aCompatMode) const {
   } else {
     aCompatMode.AssignLiteral("CSS1Compat");
   }
+}
+
+void Document::SetChannelCanonicalHostName(const nsAString& aName) {
+  nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(mChannel);
+  if (!hc) {
+    return;
+  }
+  net::HttpBaseChannel* httpBaseChannel =
+      static_cast<net::HttpBaseChannel*>(hc.get());
+  httpBaseChannel->SetCanonicalName(NS_ConvertUTF16toUTF8(aName));
 }
 
 }  // namespace dom

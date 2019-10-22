@@ -411,7 +411,9 @@ this.AntiTracking = {
             : "") +
           (typeof options.topPage == "string"
             ? " and top page set to " + options.topPage
-            : "")
+            : "") +
+          " and canonical host name set to " +
+          options.canonicalHostName
       );
 
       is(
@@ -512,6 +514,7 @@ this.AntiTracking = {
           {
             page: thirdPartyPage,
             nextPage: TEST_4TH_PARTY_PAGE,
+            canonicalHostName: options.canonicalHostName || "",
             callback: options.callback.toString(),
             callbackAfterRemoval: options.callbackAfterRemoval
               ? options.callbackAfterRemoval.toString()
@@ -523,6 +526,17 @@ this.AntiTracking = {
           },
         ],
         async function(obj) {
+          if (obj.canonicalHostName) {
+            info("Overriding canonical host name");
+            await content.SpecialPowers.spawn(
+              content.window.top,
+              [obj.canonicalHostName],
+              canonicalHostName => {
+                content.document.setChannelCanonicalHostName(canonicalHostName);
+              }
+            );
+          }
+
           let id = "id" + Math.random();
           await new content.Promise(resolve => {
             let ifr = content.document.createElement("iframe");

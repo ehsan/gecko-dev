@@ -675,3 +675,10 @@ partial interface Document {
   [ChromeOnly, Pure]
   readonly attribute nsIPermissionDelegateHandler permDelegateHandler;
 };
+
+// Extension to programmatically simulate a situation when a document has been
+// loaded from a remote domain with a given CNAME (canonical name).
+partial interface Document {
+  [ChromeOnly]
+  void setChannelCanonicalHostName(DOMString name);
+};

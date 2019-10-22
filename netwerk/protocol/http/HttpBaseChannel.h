@@ -477,6 +477,10 @@ class HttpBaseChannel : public nsHashPropertyBag,
     mContentBlockingAllowListPrincipal = aPrincipal;
   }
 
+  void SetCanonicalName(const nsACString& aCanonicalName) {
+    mCanonicalName = aCanonicalName;
+  }
+
   void SetTopWindowCanonicalName(const nsACString& aCanonicalName) {
     mTopWindowCanonicalName = aCanonicalName;
   }
