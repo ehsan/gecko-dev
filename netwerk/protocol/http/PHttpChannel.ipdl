@@ -226,6 +226,9 @@ child:
   // flash content.
   async NotifyFlashPluginStateChanged(FlashPluginState aState);
 
+  // Tell the child to partition third-party storage.
+  async NotifyPartitionForeign();
+
   // Tell the child information of matched URL againts SafeBrowsing list
   async SetClassifierMatchedInfo(ClassifierInfo info);
 

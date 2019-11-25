@@ -223,9 +223,12 @@ class DocumentLoadListener : public nsIInterfaceRequestor,
     bool mIsThirdParty;
   };
 
+  struct NotifyPartitionedForeignParams {};
+
   typedef mozilla::Variant<
       nsIHttpChannel::FlashPluginState, ClassifierMatchedInfoParams,
-      ClassifierMatchedTrackingInfoParams, ClassificationFlagsParams>
+      ClassifierMatchedTrackingInfoParams, ClassificationFlagsParams,
+      NotifyPartitionedForeignParams>
       IParentChannelFunction;
 
   // Store a list of all the attribute setters that have been called on this

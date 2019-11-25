@@ -210,6 +210,8 @@ class HttpChannelChild final : public PHttpChannelChild,
 
   mozilla::ipc::IPCResult RecvOnAfterLastPart(const nsresult& aStatus) override;
 
+  mozilla::ipc::IPCResult RecvNotifyPartitionForeign() override;
+
   virtual void ActorDestroy(ActorDestroyReason aWhy) override;
 
   virtual void DoNotifyListenerCleanup() override;

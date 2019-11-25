@@ -14,6 +14,8 @@
 #include "mozilla/dom/BrowsingContext.h"
 #include "mozilla/dom/WindowGlobalParent.h"
 #include "nsIClassifiedChannel.h"
+#include "nsILoadContext.h"
+#include "nsIParentChannel.h"
 #include "nsIRunnable.h"
 #include "nsIScriptError.h"
 #include "nsIURI.h"
@@ -495,6 +497,48 @@ void ContentBlockingNotifier::OnDecision(nsPIDOMWindowInner* aWindow,
 
   NotifyBlockingDecision(channel, trackingChannel, aDecision, aRejectedReason,
                          uri, pwin);
+}
+
+// static
+void ContentBlockingNotifier::OnPartitionForeign(nsIChannel* aChannel) {
+  // Can be called in either the parent or child process.
+  if (XRE_IsParentProcess()) {
+    nsCOMPtr<nsIParentChannel> parentChannel;
+    NS_QueryNotificationCallbacks(aChannel, parentChannel);
+    if (parentChannel) {
+      // This channel is a parent-process proxy for a child process request.
+      // Tell the child process channel to do this instead.
+      parentChannel->NotifyPartitionForeign();
+    }
+    return;
+  }
+
+  MOZ_ASSERT(XRE_IsContentProcess());
+
+  nsCOMPtr<nsILoadContext> loadContext;
+  NS_QueryNotificationCallbacks(aChannel, loadContext);
+  if (!loadContext) {
+    return;
+  }
+
+  nsCOMPtr<mozIDOMWindowProxy> domWindow;
+  loadContext->GetAssociatedWindow(getter_AddRefs(domWindow));
+  if (!domWindow) {
+    return;
+  }
+
+  nsPIDOMWindowInner* inner =
+      nsPIDOMWindowOuter::From(domWindow)->GetCurrentInnerWindow();
+  if (!inner) {
+    return;
+  }
+
+  Document* doc = inner->GetExtantDoc();
+  if (!doc) {
+    return;
+  }
+
+  doc->CookieJarSettings()->SetPartitionForeign(true);
 }
 
 /* static */

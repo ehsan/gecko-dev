@@ -49,6 +49,11 @@ class ContentBlockingNotifier final {
   static void OnDecision(nsPIDOMWindowInner* aWindow,
                          BlockingDecision aDecision, uint32_t aRejectedReason);
 
+  // This method can be called on the parent process or on the content process.
+  // The notification is propagated to the child channel if aChannel is a parent
+  // channel proxy.
+  static void OnPartitionForeign(nsIChannel* aChannel);
+
   static void OnEvent(nsIChannel* aChannel, uint32_t aRejectedReason);
 
   static void OnEvent(

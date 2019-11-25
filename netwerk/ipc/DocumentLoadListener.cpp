@@ -637,6 +637,9 @@ void DocumentLoadListener::FinishReplacementChannelSetup(bool aSucceeded) {
         [redirectChannel](const ClassificationFlagsParams& aParams) {
           redirectChannel->NotifyClassificationFlags(
               aParams.mClassificationFlags, aParams.mIsThirdParty);
+        },
+        [redirectChannel](const NotifyPartitionedForeignParams&) {
+          redirectChannel->NotifyPartitionForeign();
         });
   }
 
@@ -1154,6 +1157,13 @@ DocumentLoadListener::NotifyClassificationFlags(uint32_t aClassificationFlags,
   mIParentChannelFunctions.AppendElement(IParentChannelFunction{
       VariantIndex<3>{},
       ClassificationFlagsParams{aClassificationFlags, aIsThirdParty}});
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+DocumentLoadListener::NotifyPartitionForeign() {
+  mIParentChannelFunctions.AppendElement(IParentChannelFunction{
+      VariantIndex<4>{}, NotifyPartitionedForeignParams()});
   return NS_OK;
 }
 

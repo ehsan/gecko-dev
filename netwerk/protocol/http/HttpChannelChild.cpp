@@ -11,6 +11,7 @@
 #include "nsHttp.h"
 #include "nsICacheEntry.h"
 #include "mozilla/BasePrincipal.h"
+#include "mozilla/ContentBlockingNotifier.h"
 #include "mozilla/Unused.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/DocGroup.h"
@@ -1854,6 +1855,18 @@ mozilla::ipc::IPCResult HttpChannelChild::RecvNotifyFlashPluginStateChanged(
   mEventQ->RunOrEnqueue(new NeckoTargetChannelFunctionEvent(
       this, [self = UnsafePtr<HttpChannelChild>(this), aState] {
         self->SetFlashPluginState(aState);
+      }));
+
+  return IPC_OK();
+}
+
+mozilla::ipc::IPCResult HttpChannelChild::RecvNotifyPartitionForeign() {
+  LOG(("HttpChannelChild::RecvNotifyPartitionForeign [this=%p]\n", this));
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mEventQ->RunOrEnqueue(new NeckoTargetChannelFunctionEvent(
+      this, [self = UnsafePtr<HttpChannelChild>(this)] {
+        ContentBlockingNotifier::OnPartitionForeign(self);
       }));
 
   return IPC_OK();

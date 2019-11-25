@@ -421,6 +421,11 @@ NS_IMETHODIMP nsExtProtocolChannel::NotifyFlashPluginStateChanged(
   return NS_OK;
 }
 
+NS_IMETHODIMP nsExtProtocolChannel::NotifyPartitionForeign() {
+  // nothing to do
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsExtProtocolChannel::Delete() {
   // nothing to do
   return NS_OK;

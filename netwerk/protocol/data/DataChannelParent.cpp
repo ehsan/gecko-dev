@@ -58,6 +58,12 @@ DataChannelParent::SetClassifierMatchedTrackingInfo(
 }
 
 NS_IMETHODIMP
+DataChannelParent::NotifyPartitionForeign() {
+  // Nothing to do.
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 DataChannelParent::Delete() {
   // Nothing to do.
   return NS_OK;

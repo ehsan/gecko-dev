@@ -1977,6 +1977,15 @@ HttpChannelParent::NotifyFlashPluginStateChanged(
 }
 
 NS_IMETHODIMP
+HttpChannelParent::NotifyPartitionForeign() {
+  LOG(("HttpChannelParent::NotifyPartitionForeign [this=%p]\n", this));
+  if (!mIPCClosed) {
+    Unused << SendNotifyPartitionForeign();
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 HttpChannelParent::Delete() {
   if (!mIPCClosed) Unused << DoSendDeleteSelf();
 

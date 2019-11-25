@@ -70,6 +70,12 @@ interface nsIParentChannel : nsIStreamListener
                                             in bool aIsThirdParty);
 
   /**
+   * Called to notify the child channel that third-party storage should be
+   * partitioned.
+   */
+  [noscript] void notifyPartitionForeign();
+
+  /**
    * Called to invoke deletion of the IPC protocol.
    */
   void delete();

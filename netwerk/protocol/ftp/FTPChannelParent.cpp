@@ -529,6 +529,12 @@ FTPChannelParent::SetClassifierMatchedTrackingInfo(
 }
 
 NS_IMETHODIMP
+FTPChannelParent::NotifyPartitionForeign() {
+  // One day, this should probably be filled in.
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 FTPChannelParent::Delete() {
   if (mIPCClosed || !SendDeleteSelf()) return NS_ERROR_UNEXPECTED;
 
