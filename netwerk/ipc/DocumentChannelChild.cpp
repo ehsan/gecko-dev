@@ -7,6 +7,8 @@
 
 #include "DocumentChannelChild.h"
 
+#include "mozilla/AntiTrackingUtils.h"
+
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
 
@@ -20,6 +22,7 @@ namespace net {
 // DocumentChannelChild::nsISupports
 
 NS_INTERFACE_MAP_BEGIN(DocumentChannelChild)
+  NS_INTERFACE_MAP_ENTRY(nsIChannelWithCanonicalName)
   NS_INTERFACE_MAP_ENTRY(nsIAsyncVerifyRedirectCallback)
 NS_INTERFACE_MAP_END_INHERITING(DocumentChannel)
 
@@ -57,6 +60,22 @@ DocumentChannelChild::AsyncOpen(nsIStreamListener* aListener) {
   rv = NS_CheckPortSafety(mURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsAutoCString topWindowCanonicalName(VoidCString());
+
+  nsCOMPtr<mozIThirdPartyUtil> util = services::GetThirdPartyUtil();
+  if (util &&
+      StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname()) {
+    nsCOMPtr<nsIURI> uriBeingLoaded =
+        AntiTrackingUtils::MaybeGetDocumentURIBeingLoaded(this);
+    nsCOMPtr<mozIDOMWindowProxy> win;
+    rv =
+        util->GetTopWindowForChannel(this, uriBeingLoaded, getter_AddRefs(win));
+    if (NS_SUCCEEDED(rv)) {
+      Unused << util->GetCanonicalHostNameFromWindow(win,
+                                                     topWindowCanonicalName);
+    }
+  }
+
   // add ourselves to the load group.
   if (mLoadGroup) {
     // During this call, we can re-enter back into the DocumentChannelChild to
@@ -80,6 +99,10 @@ DocumentChannelChild::AsyncOpen(nsIStreamListener* aListener) {
   rv = LoadInfoToLoadInfoArgs(mLoadInfo, &maybeArgs);
   NS_ENSURE_SUCCESS(rv, rv);
   MOZ_DIAGNOSTIC_ASSERT(maybeArgs);
+
+  if (!topWindowCanonicalName.IsVoid()) {
+    args.topWindowCanonicalHostName() = Some(topWindowCanonicalName);
+  }
 
   args.loadInfo() = *maybeArgs;
   args.loadFlags() = mLoadFlags;
@@ -123,7 +146,7 @@ DocumentChannelChild::AsyncOpen(nsIStreamListener* aListener) {
   mListener = listener;
 
   return NS_OK;
-}
+}  // namespace net
 
 IPCResult DocumentChannelChild::RecvFailedAsyncOpen(
     const nsresult& aStatusCode) {
@@ -282,6 +305,11 @@ IPCResult DocumentChannelChild::RecvRedirectToRealChannel(
     nsHashPropertyBag::CopyFrom(bag, aArgs.properties());
   }
 
+  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(newChannel);
+  if (cwcn) {
+    cwcn->SetCanonicalHostName(aArgs.canonicalName());
+  }
+
   // connect parent.
   nsCOMPtr<nsIChildChannel> childChannel = do_QueryInterface(newChannel);
   if (childChannel) {
@@ -403,6 +431,27 @@ DocumentChannelChild::Cancel(nsresult aStatusCode) {
   ShutdownListeners(aStatusCode);
 
   return NS_OK;
+}
+
+//-----------------------------------------------------------------------------
+// DocumentChannelChild::nsIChannelWithCanonicalName
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP_(const nsACString&)
+DocumentChannelChild::GetCanonicalHostName() { return mCanonicalName; }
+
+NS_IMETHODIMP_(void)
+DocumentChannelChild::SetCanonicalHostName(const nsACString& aHostName) {
+  mCanonicalName = aHostName;
+}
+
+mozilla::ipc::IPCResult DocumentChannelChild::RecvSetCanonicalHostName(
+    const nsCString& aHostName) {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  SetCanonicalHostName(aHostName);
+
+  return IPC_OK();
 }
 
 }  // namespace net

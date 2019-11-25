@@ -62,6 +62,8 @@ child:
   // avoid races: see bug 591708).
   async DeleteSelf();
 
+  async SetCanonicalHostName(nsCString hostName);
+
 };
 
 } // namespace net

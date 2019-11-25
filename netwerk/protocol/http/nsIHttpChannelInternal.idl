@@ -401,4 +401,10 @@ interface nsIHttpChannelInternal : nsISupports
         in nsILoadInfo_CrossOriginOpenerPolicy aInitiatorPolicy);
 
     [notxpcom, nostdcall] attribute boolean hasNonEmptySandboxingFlag;
+
+    /**
+     * The canonical host name for the top window that this channel belongs to.
+     */
+    [notxpcom, nostdcall]
+    readonly attribute ACString topWindowCanonicalHostName;
 };

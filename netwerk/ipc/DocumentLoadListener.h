@@ -71,6 +71,7 @@ class DocumentLoadListener : public nsIInterfaceRequestor,
   // Creates the channel, and then calls AsyncOpen on it.
   bool Open(nsDocShellLoadState* aLoadState, LoadInfo* aLoadInfo,
             nsLoadFlags aLoadFlags, uint32_t aCacheKey,
+            const Maybe<nsCString>& aTopWindowCanonicalHostName,
             const uint64_t& aChannelId, const TimeStamp& aAsyncOpenTime,
             const Maybe<uint32_t>& aDocumentOpenFlags, bool aPluginsAllowed,
             nsDOMNavigationTiming* aTiming, Maybe<dom::ClientInfo>&& aInfo,
@@ -156,6 +157,8 @@ class DocumentLoadListener : public nsIInterfaceRequestor,
   void SerializeRedirectData(RedirectToRealChannelArgs& aArgs,
                              bool aIsCrossProcess, uint32_t aRedirectFlags,
                              uint32_t aLoadFlags);
+
+  void PropagateCanonicalHostName(const nsACString& aHostName);
 
  protected:
   virtual ~DocumentLoadListener();

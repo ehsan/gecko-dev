@@ -11,6 +11,7 @@
 #include "mozilla/net/PDocumentChannelChild.h"
 #include "mozilla/net/DocumentChannel.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
+#include "nsIChannelWithCanonicalName.h"
 
 namespace mozilla {
 namespace net {
@@ -22,6 +23,7 @@ namespace net {
  */
 class DocumentChannelChild final : public DocumentChannel,
                                    public nsIAsyncVerifyRedirectCallback,
+                                   public nsIChannelWithCanonicalName,
                                    public PDocumentChannelChild {
  public:
   DocumentChannelChild(nsDocShellLoadState* aLoadState,
@@ -30,6 +32,7 @@ class DocumentChannelChild final : public DocumentChannel,
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
+  NS_DECL_NSICHANNELWITHCANONICALNAME
 
   NS_IMETHOD AsyncOpen(nsIStreamListener* aListener) override;
   NS_IMETHOD Cancel(nsresult aStatusCode) override;
@@ -52,6 +55,8 @@ class DocumentChannelChild final : public DocumentChannel,
       LoadInfoArgs&& aLoadInfo, nsIURI* aNewUri,
       ConfirmRedirectResolver&& aResolve);
 
+  mozilla::ipc::IPCResult RecvSetCanonicalHostName(const nsCString& aHostName);
+
  private:
   void ShutdownListeners(nsresult aStatusCode);
 
@@ -60,6 +65,8 @@ class DocumentChannelChild final : public DocumentChannel,
   nsCOMPtr<nsIChannel> mRedirectChannel;
 
   RedirectToRealChannelResolver mRedirectResolver;
+
+  nsCString mCanonicalName;
 };
 
 }  // namespace net

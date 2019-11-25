@@ -30,6 +30,7 @@ XPIDL_SOURCES += [
     'nsICaptivePortalService.idl',
     'nsIChannel.idl',
     'nsIChannelEventSink.idl',
+    'nsIChannelWithCanonicalName.idl',
     'nsIChannelWithDivertableParentListener.idl',
     'nsIChildChannel.idl',
     'nsIClassifiedChannel.idl',

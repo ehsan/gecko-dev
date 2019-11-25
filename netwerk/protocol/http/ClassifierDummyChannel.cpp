@@ -657,6 +657,10 @@ bool ClassifierDummyChannel::GetHasNonEmptySandboxingFlag() { return false; }
 void ClassifierDummyChannel::SetHasNonEmptySandboxingFlag(
     bool aHasNonEmptySandboxingFlag) {}
 
+const nsACString& ClassifierDummyChannel::GetTopWindowCanonicalHostName() {
+  return VoidCString();
+}
+
 NS_IMETHODIMP ClassifierDummyChannel::ComputeCrossOriginOpenerPolicy(
     nsILoadInfo::CrossOriginOpenerPolicy aInitiatorPolicy,
     nsILoadInfo::CrossOriginOpenerPolicy* aOutPolicy) {

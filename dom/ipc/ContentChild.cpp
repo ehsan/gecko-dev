@@ -3655,6 +3655,14 @@ mozilla::ipc::IPCResult ContentChild::RecvCrossProcessRedirect(
         HttpBaseChannel::ReplacementReason::DocumentChannel);
   }
 
+  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(newChannel);
+  if (!cwcn) {
+    MOZ_DIAGNOSTIC_ASSERT(false, "NS_NewChannelInternal failed");
+    return IPC_OK();
+  }
+
+  cwcn->SetCanonicalHostName(aArgs.canonicalName());
+
   if (nsCOMPtr<nsIChildChannel> childChannel = do_QueryInterface(newChannel)) {
     // Connect to the parent if this is a remote channel. If it's entirely
     // handled locally, then we'll call AsyncOpen from the docshell when

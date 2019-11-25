@@ -153,7 +153,8 @@ class AddHeadersToChannelVisitor final : public nsIHttpHeaderVisitor {
 NS_IMPL_ISUPPORTS(AddHeadersToChannelVisitor, nsIHttpHeaderVisitor)
 
 HttpBaseChannel::HttpBaseChannel()
-    : mReportCollector(new ConsoleReportCollector()),
+    : mTopWindowCanonicalName(VoidCString()),
+      mReportCollector(new ConsoleReportCollector()),
       mHttpHandler(gHttpHandler),
       mChannelCreationTime(0),
       mComputedCrossOriginOpenerPolicy(nsILoadInfo::OPENER_POLICY_UNSAFE_NONE),
@@ -409,6 +410,7 @@ NS_INTERFACE_MAP_BEGIN(HttpBaseChannel)
   NS_INTERFACE_MAP_ENTRY(nsIUploadChannel2)
   NS_INTERFACE_MAP_ENTRY(nsISupportsPriority)
   NS_INTERFACE_MAP_ENTRY(nsITraceableChannel)
+  NS_INTERFACE_MAP_ENTRY(nsIChannelWithCanonicalName)
   NS_INTERFACE_MAP_ENTRY(nsIPrivateBrowsingChannel)
   NS_INTERFACE_MAP_ENTRY(nsITimedChannel)
   NS_INTERFACE_MAP_ENTRY(nsIConsoleReportCollector)
@@ -3580,6 +3582,8 @@ nsresult HttpBaseChannel::SetupReplacementChannel(nsIURI* newURI,
       realChannel->SetContentBlockingAllowListPrincipal(
           mContentBlockingAllowListPrincipal);
 
+      realChannel->SetTopWindowCanonicalName(GetTopWindowCanonicalHostName());
+
       realChannel->SetTopWindowURI(mTopWindowURI);
     }
 
@@ -4526,6 +4530,43 @@ void HttpBaseChannel::MaybeFlushConsoleReports() {
   if (NS_SUCCEEDED(rv) && loadGroup) {
     FlushConsoleReports(loadGroup);
   }
+}
+
+//-----------------------------------------------------------------------------
+// nsHttpChannel::nsIChannelWithCanonicalName
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP_(const nsACString&)
+HttpBaseChannel::GetCanonicalHostName() { return mCanonicalName; }
+
+NS_IMETHODIMP_(void)
+HttpBaseChannel::SetCanonicalHostName(const nsACString& aHostName) {
+  mCanonicalName = aHostName;
+}
+
+const nsACString& HttpBaseChannel::GetTopWindowCanonicalHostName() {
+  if (mTopWindowCanonicalName.IsVoid() &&
+      StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname()) {
+    if (!mTopWindowURI) {
+      // If mTopWindowURI is null, it's possible that these two fields haven't
+      // been initialized yet.  GetTopWindowURI will lazily initilize both
+      // fields for us.
+      nsCOMPtr<nsIURI> throwAway;
+      Unused << GetTopWindowURI(getter_AddRefs(throwAway));
+    }
+
+    nsCOMPtr<mozIThirdPartyUtil> util = services::GetThirdPartyUtil();
+    if (util) {
+      nsCOMPtr<mozIDOMWindowProxy> win;
+      nsresult rv =
+          util->GetTopWindowForChannel(this, nullptr, getter_AddRefs(win));
+      if (NS_SUCCEEDED(rv)) {
+        Unused << util->GetCanonicalHostNameFromWindow(win,
+                                                       mTopWindowCanonicalName);
+      }
+    }
+  }
+  return mTopWindowCanonicalName;
 }
 
 }  // namespace net

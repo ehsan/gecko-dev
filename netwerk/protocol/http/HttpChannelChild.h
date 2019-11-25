@@ -212,6 +212,9 @@ class HttpChannelChild final : public PHttpChannelChild,
 
   mozilla::ipc::IPCResult RecvNotifyPartitionForeign() override;
 
+  mozilla::ipc::IPCResult RecvSetCanonicalHostName(
+      const nsCString& aHostName) override;
+
   virtual void ActorDestroy(ActorDestroyReason aWhy) override;
 
   virtual void DoNotifyListenerCleanup() override;

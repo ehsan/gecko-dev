@@ -55,6 +55,10 @@ class ADocumentChannelBridge {
   virtual bool AttachStreamFilter(
       ipc::Endpoint<mozilla::extensions::PStreamFilterParent>&& aEndpoint) = 0;
 
+  // Propagate the canonical host name to the remote side nsIChannel of this
+  // bridge.
+  virtual void PropagateCanonicalHostName(const nsACString& aHostName) = 0;
+
  protected:
   virtual ~ADocumentChannelBridge() = default;
 };

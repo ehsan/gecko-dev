@@ -239,6 +239,8 @@ child:
   // disconnected our listeners, since we might not have on the last OnStopRequest.
   async OnAfterLastPart(nsresult aStatus);
 
+  async SetCanonicalHostName(nsCString hostName);
+
 both:
   // After receiving this message, the parent also calls
   // SendFinishInterceptedRedirect, and makes sure not to send any more messages

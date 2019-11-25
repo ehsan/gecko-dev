@@ -28,6 +28,7 @@
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsIApplicationCache.h"
+#include "nsIChannelWithCanonicalName.h"
 #include "nsIClassOfService.h"
 #include "nsIClassifiedChannel.h"
 #include "nsIConsoleReportCollector.h"
@@ -101,6 +102,7 @@ class HttpBaseChannel : public nsHashPropertyBag,
                         public nsIClassOfService,
                         public nsIResumableChannel,
                         public nsITraceableChannel,
+                        public nsIChannelWithCanonicalName,
                         public PrivateBrowsingChannel<HttpBaseChannel>,
                         public nsITimedChannel,
                         public nsIForcePendingChannel,
@@ -116,6 +118,7 @@ class HttpBaseChannel : public nsHashPropertyBag,
   NS_DECL_NSIFORMPOSTACTIONCHANNEL
   NS_DECL_NSIUPLOADCHANNEL2
   NS_DECL_NSITRACEABLECHANNEL
+  NS_DECL_NSICHANNELWITHCANONICALNAME
   NS_DECL_NSITIMEDCHANNEL
   NS_DECL_NSITHROTTLEDINPUTCHANNEL
   NS_DECL_NSICLASSIFIEDCHANNEL
@@ -325,6 +328,7 @@ class HttpBaseChannel : public nsHashPropertyBag,
       bool aHasNonEmptySandboxingFlag) override {
     mHasNonEmptySandboxingFlag = aHasNonEmptySandboxingFlag;
   }
+  virtual const nsACString& GetTopWindowCanonicalHostName() override;
 
   inline void CleanRedirectCacheChainIfNecessary() {
     mRedirectedCachekeys = nullptr;
@@ -471,6 +475,10 @@ class HttpBaseChannel : public nsHashPropertyBag,
 
   void SetContentBlockingAllowListPrincipal(nsIPrincipal* aPrincipal) {
     mContentBlockingAllowListPrincipal = aPrincipal;
+  }
+
+  void SetTopWindowCanonicalName(const nsACString& aCanonicalName) {
+    mTopWindowCanonicalName = aCanonicalName;
   }
 
   // Set referrerInfo and compute the referrer header if neccessary.
@@ -654,6 +662,12 @@ class HttpBaseChannel : public nsHashPropertyBag,
   // Holds the name of the alternative data type the channel returned.
   nsCString mAvailableCachedAltDataType;
   nsString mIntegrityMetadata;
+  // Holds the canonical name (CNAME) of the host from which this channel is
+  // loaded.
+  nsCString mCanonicalName;
+  // Holds the canonical name (CNAME) of the host from which the channel
+  // belonging to the top-level window this channel came from was loaded.
+  nsCString mTopWindowCanonicalName;
 
   // Classified channel's matched information
   nsCString mMatchedList;

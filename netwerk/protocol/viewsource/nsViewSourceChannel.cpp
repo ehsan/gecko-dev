@@ -1160,3 +1160,10 @@ nsViewSourceChannel::GetInterface(const nsIID& aIID, void** aResult) {
 
   return NS_ERROR_NO_INTERFACE;
 }
+
+const nsACString& nsViewSourceChannel::GetTopWindowCanonicalHostName() {
+  if (mHttpChannelInternal) {
+    return mHttpChannelInternal->GetTopWindowCanonicalHostName();
+  }
+  return VoidCString();
+}

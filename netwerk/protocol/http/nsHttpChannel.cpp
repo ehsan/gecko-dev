@@ -9344,32 +9344,38 @@ nsHttpChannel::OnLookupComplete(nsICancelable* request, nsIDNSRecord* rec,
   MOZ_ASSERT(NS_IsMainThread(), "Expecting DNS callback on main thread.");
 
   LOG(
-      ("nsHttpChannel::OnLookupComplete [this=%p] prefetch complete%s: "
+      ("nsHttpChannel::OnLookupComplete [this=%p] prefetch complete%s%s: "
        "%s status[0x%" PRIx32 "]\n",
        this, mCaps & NS_HTTP_REFRESH_DNS ? ", refresh requested" : "",
+       mConnectionInfo->UsingHttpProxy() ? ", using HTTP proxy" : "",
        NS_SUCCEEDED(status) ? "success" : "failure",
        static_cast<uint32_t>(status)));
 
-  // We no longer need the dns prefetch object. Note: mDNSPrefetch could be
-  // validly null if OnStopRequest has already been called.
-  // We only need the domainLookup timestamps when not loading from cache
-  if (mDNSPrefetch && mDNSPrefetch->TimingsValid() && mTransaction) {
-    TimeStamp connectStart = mTransaction->GetConnectStart();
-    TimeStamp requestStart = mTransaction->GetRequestStart();
-    // We only set the domainLookup timestamps if we're not using a
-    // persistent connection.
-    if (requestStart.IsNull() && connectStart.IsNull()) {
-      mTransaction->SetDomainLookupStart(mDNSPrefetch->StartTimestamp());
-      mTransaction->SetDomainLookupEnd(mDNSPrefetch->EndTimestamp());
+  // If we have performed a resolution and we are using a proxy, then it must
+  // have been due to resolving canonical names.  We don't need to run the
+  // logic in this branch in that case since the real name resolution is
+  // handled by the proxy server.
+  if (!mConnectionInfo->UsingHttpProxy()) {
+    // We no longer need the dns prefetch object. Note: mDNSPrefetch could be
+    // validly null if OnStopRequest has already been called.
+    // We only need the domainLookup timestamps when not loading from cache
+    if (mDNSPrefetch && mDNSPrefetch->TimingsValid() && mTransaction) {
+      TimeStamp connectStart = mTransaction->GetConnectStart();
+      TimeStamp requestStart = mTransaction->GetRequestStart();
+      // We only set the domainLookup timestamps if we're not using a
+      // persistent connection.
+      if (requestStart.IsNull() && connectStart.IsNull()) {
+        mTransaction->SetDomainLookupStart(mDNSPrefetch->StartTimestamp());
+        mTransaction->SetDomainLookupEnd(mDNSPrefetch->EndTimestamp());
+      }
     }
-  }
-  mDNSPrefetch = nullptr;
 
-  // Unset DNS cache refresh if it was requested,
-  if (mCaps & NS_HTTP_REFRESH_DNS) {
-    mCaps &= ~NS_HTTP_REFRESH_DNS;
-    if (mTransaction) {
-      mTransaction->SetDNSWasRefreshed();
+    // Unset DNS cache refresh if it was requested,
+    if (mCaps & NS_HTTP_REFRESH_DNS) {
+      mCaps &= ~NS_HTTP_REFRESH_DNS;
+      if (mTransaction) {
+        mTransaction->SetDNSWasRefreshed();
+      }
     }
   }
 
@@ -9381,6 +9387,8 @@ nsHttpChannel::OnLookupComplete(nsICancelable* request, nsIDNSRecord* rec,
       mDNSBlockingPromise.Reject(status, __func__);
     }
   }
+
+  mDNSPrefetch = nullptr;
 
   return NS_OK;
 }

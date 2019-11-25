@@ -208,6 +208,15 @@ interface mozIThirdPartyUtil : nsISupports
                                                               [optional] in nsIURI aURIBeingLoaded);
 
   /**
+   * getCanonicalHostNameFromWindow
+   *
+   * Returns the canonical host name for the location of the document loaded
+   * inside the window.
+   */
+  [noscript]
+  ACString getCanonicalHostNameFromWindow(in mozIDOMWindowProxy aWindow);
+
+  /**
    * getTopWindowForChannel
    *
    * Returns the top-level window associated with the given channel.

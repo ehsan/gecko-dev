@@ -345,10 +345,12 @@ CanonicalBrowsingContext* DocumentLoadListener::GetBrowsingContext() {
 
 bool DocumentLoadListener::Open(
     nsDocShellLoadState* aLoadState, class LoadInfo* aLoadInfo,
-    nsLoadFlags aLoadFlags, uint32_t aCacheKey, const uint64_t& aChannelId,
-    const TimeStamp& aAsyncOpenTime, const Maybe<uint32_t>& aDocumentOpenFlags,
-    bool aPluginsAllowed, nsDOMNavigationTiming* aTiming,
-    Maybe<ClientInfo>&& aInfo, uint64_t aOuterWindowId, nsresult* aRv) {
+    nsLoadFlags aLoadFlags, uint32_t aCacheKey,
+    const Maybe<nsCString>& aTopWindowCanonicalHostName,
+    const uint64_t& aChannelId, const TimeStamp& aAsyncOpenTime,
+    const Maybe<uint32_t>& aDocumentOpenFlags, bool aPluginsAllowed,
+    nsDOMNavigationTiming* aTiming, Maybe<ClientInfo>&& aInfo,
+    uint64_t aOuterWindowId, nsresult* aRv) {
   LOG(("DocumentLoadListener Open [this=%p, uri=%s]", this,
        aLoadState->URI()->GetSpecOrDefault().get()));
   RefPtr<CanonicalBrowsingContext> browsingContext =
@@ -420,6 +422,10 @@ bool DocumentLoadListener::Open(
         contentBlockingAllowListPrincipal->GetIsContentPrincipal()) {
       httpBaseChannel->SetContentBlockingAllowListPrincipal(
           contentBlockingAllowListPrincipal);
+    }
+
+    if (aTopWindowCanonicalHostName) {
+      httpBaseChannel->SetTopWindowCanonicalName(*aTopWindowCanonicalHostName);
     }
   }
 
@@ -856,6 +862,11 @@ void DocumentLoadListener::SerializeRedirectData(
   aArgs.baseUri() = mBaseURI;
   aArgs.loadStateLoadFlags() = mLoadStateLoadFlags;
   aArgs.loadStateLoadType() = mLoadStateLoadType;
+
+  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(mChannel);
+  if (cwcn) {
+    aArgs.canonicalName() = cwcn->GetCanonicalHostName();
+  }
 }
 
 void DocumentLoadListener::TriggerCrossProcessSwitch() {
@@ -1322,6 +1333,13 @@ DocumentLoadListener::GetCachedCrossOriginOpenerPolicy(
   }
 
   return httpChannel->GetCrossOriginOpenerPolicy(aPolicy);
+}
+
+void DocumentLoadListener::PropagateCanonicalHostName(
+    const nsACString& aHostName) {
+  if (mDocumentChannelBridge) {
+    mDocumentChannelBridge->PropagateCanonicalHostName(aHostName);
+  }
 }
 
 }  // namespace net

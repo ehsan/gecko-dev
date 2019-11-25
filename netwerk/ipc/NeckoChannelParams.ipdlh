@@ -242,6 +242,7 @@ struct HttpChannelOpenArgs
   URIParams?                  apiRedirectTo;
   URIParams?                  topWindowURI;
   nsIPrincipal?               contentBlockingAllowListPrincipal;
+  nsCString?                  topWindowCanonicalHostName;
   uint32_t                    loadFlags;
   RequestHeaderTuples         requestHeaders;
   nsCString                   requestMethod;
@@ -410,6 +411,7 @@ struct CookieStruct
 struct DocumentChannelCreationArgs {
   DocShellLoadStateInit loadState;
   LoadInfoArgs loadInfo;
+  nsCString? topWindowCanonicalHostName;
   TimeStamp asyncOpenTime;
   uint64_t channelId;
   uint32_t loadFlags;
@@ -454,6 +456,7 @@ struct RedirectToRealChannelArgs {
   nsDOMNavigationTiming? timing;
   nsString srcdocData;
   nsIURI baseUri;
+  nsCString canonicalName;
 };
 
 struct TimingStructArgs {

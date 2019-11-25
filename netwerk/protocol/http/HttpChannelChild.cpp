@@ -2732,6 +2732,12 @@ nsresult HttpChannelChild::ContinueAsyncOpen() {
           ? Some(RefPtr<nsIPrincipal>(mContentBlockingAllowListPrincipal))
           : Nothing();
 
+  nsCString topWindowCanonicalName =
+      PromiseFlatCString(GetTopWindowCanonicalHostName());
+  openArgs.topWindowCanonicalHostName() = topWindowCanonicalName.IsVoid()
+                                              ? Nothing()
+                                              : Some(topWindowCanonicalName);
+
   openArgs.preflightArgs() = optionalCorsPreflightArgs;
 
   openArgs.uploadStreamHasHeaders() = mUploadStreamHasHeaders;
@@ -3225,6 +3231,13 @@ HttpChannelChild::RecvOverrideReferrerInfoDuringBeginConnect(
   // aRespectBeforeConnect which we pass false here since we're intentionally
   // overriding the referrer after BeginConnect().
   Unused << SetReferrerInfoInternal(aReferrerInfo, false, true, false);
+
+  return IPC_OK();
+}
+
+mozilla::ipc::IPCResult HttpChannelChild::RecvSetCanonicalHostName(
+    const nsCString& aHostName) {
+  SetCanonicalHostName(aHostName);
 
   return IPC_OK();
 }

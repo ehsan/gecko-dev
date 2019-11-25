@@ -135,6 +135,8 @@ class HttpChannelParent final : public nsIInterfaceRequestor,
   // BeginConnect.
   void OverrideReferrerInfoDuringBeginConnect(nsIReferrerInfo* aReferrerInfo);
 
+  void PropagateCanonicalHostName(const nsACString& aHostName);
+
  protected:
   // used to connect redirected-to channel in parent with just created
   // ChildChannel.  Used during redirects.
@@ -147,16 +149,17 @@ class HttpChannelParent final : public nsIInterfaceRequestor,
       const Maybe<URIParams>& internalRedirectUri,
       const Maybe<URIParams>& topWindowUri,
       nsIPrincipal* aContentBlockingAllowListPrincipal,
-      const uint32_t& loadFlags, const RequestHeaderTuples& requestHeaders,
-      const nsCString& requestMethod, const Maybe<IPCStream>& uploadStream,
-      const bool& uploadStreamHasHeaders, const int16_t& priority,
-      const uint32_t& classOfService, const uint8_t& redirectionLimit,
-      const bool& allowSTS, const uint32_t& thirdPartyFlags,
-      const bool& doResumeAt, const uint64_t& startPos,
-      const nsCString& entityID, const bool& chooseApplicationCache,
-      const nsCString& appCacheClientID, const bool& allowSpdy,
-      const bool& allowAltSvc, const bool& beConservative,
-      const uint32_t& tlsFlags, const Maybe<LoadInfoArgs>& aLoadInfoArgs,
+      const nsACString& aTopWindowCanonicalHostName, const uint32_t& loadFlags,
+      const RequestHeaderTuples& requestHeaders, const nsCString& requestMethod,
+      const Maybe<IPCStream>& uploadStream, const bool& uploadStreamHasHeaders,
+      const int16_t& priority, const uint32_t& classOfService,
+      const uint8_t& redirectionLimit, const bool& allowSTS,
+      const uint32_t& thirdPartyFlags, const bool& doResumeAt,
+      const uint64_t& startPos, const nsCString& entityID,
+      const bool& chooseApplicationCache, const nsCString& appCacheClientID,
+      const bool& allowSpdy, const bool& allowAltSvc,
+      const bool& beConservative, const uint32_t& tlsFlags,
+      const Maybe<LoadInfoArgs>& aLoadInfoArgs,
       const Maybe<nsHttpResponseHead>& aSynthesizedResponseHead,
       const nsCString& aSecurityInfoSerialization, const uint32_t& aCacheKey,
       const uint64_t& aRequestContextID,

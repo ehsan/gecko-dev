@@ -10,6 +10,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsIChannel.h"
+#include "nsIChannelWithCanonicalName.h"
 #include "nsIClassifiedChannel.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsILoadContext.h"
@@ -124,6 +125,29 @@ ThirdPartyUtil::GetPrincipalFromWindow(mozIDOMWindowProxy* aWin,
   }
 
   prin.forget(result);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ThirdPartyUtil::GetCanonicalHostNameFromWindow(mozIDOMWindowProxy* aWindow,
+                                               nsACString& aResult) {
+  MOZ_ASSERT(StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname());
+
+  Document* doc = nsPIDOMWindowOuter::From(aWindow)->GetExtantDoc();
+  nsIChannel* chan = doc ? doc->GetChannel() : nullptr;
+  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(chan);
+  if (cwcn) {
+    const nsACString& hostName = cwcn->GetCanonicalHostName();
+
+    // Pass a dummy scheme like "https" here.  It doesn't really matter what we
+    // pass here since the function doesn't use its scheme argument for the
+    // conversion to the base domain except for error checking.
+    if (!hostName.IsEmpty()) {
+      nsresult rv = GetBaseDomainFromSchemeHost(NS_LITERAL_CSTRING("https"),
+                                                hostName, aResult);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+  }
   return NS_OK;
 }
 

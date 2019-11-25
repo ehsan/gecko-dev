@@ -138,12 +138,13 @@ bool HttpChannelParent::Init(const HttpChannelCreationArgs& aArgs) {
           a.contentBlockingAllowListPrincipal()
               .valueOr(RefPtr<nsIPrincipal>())
               .get(),
-          a.loadFlags(), a.requestHeaders(), a.requestMethod(),
-          a.uploadStream(), a.uploadStreamHasHeaders(), a.priority(),
-          a.classOfService(), a.redirectionLimit(), a.allowSTS(),
-          a.thirdPartyFlags(), a.resumeAt(), a.startPos(), a.entityID(),
-          a.chooseApplicationCache(), a.appCacheClientID(), a.allowSpdy(),
-          a.allowAltSvc(), a.beConservative(), a.tlsFlags(), a.loadInfo(),
+          a.topWindowCanonicalHostName().valueOr(VoidCString()), a.loadFlags(),
+          a.requestHeaders(), a.requestMethod(), a.uploadStream(),
+          a.uploadStreamHasHeaders(), a.priority(), a.classOfService(),
+          a.redirectionLimit(), a.allowSTS(), a.thirdPartyFlags(), a.resumeAt(),
+          a.startPos(), a.entityID(), a.chooseApplicationCache(),
+          a.appCacheClientID(), a.allowSpdy(), a.allowAltSvc(),
+          a.beConservative(), a.tlsFlags(), a.loadInfo(),
           a.synthesizedResponseHead(), a.synthesizedSecurityInfoSerialization(),
           a.cacheKey(), a.requestContextID(), a.preflightArgs(),
           a.initialRwin(), a.blockAuthPrompt(),
@@ -378,12 +379,13 @@ bool HttpChannelParent::DoAsyncOpen(
     const Maybe<URIParams>& aAPIRedirectToURI,
     const Maybe<URIParams>& aTopWindowURI,
     nsIPrincipal* aContentBlockingAllowListPrincipal,
-    const uint32_t& aLoadFlags, const RequestHeaderTuples& requestHeaders,
-    const nsCString& requestMethod, const Maybe<IPCStream>& uploadStream,
-    const bool& uploadStreamHasHeaders, const int16_t& priority,
-    const uint32_t& classOfService, const uint8_t& redirectionLimit,
-    const bool& allowSTS, const uint32_t& thirdPartyFlags,
-    const bool& doResumeAt, const uint64_t& startPos, const nsCString& entityID,
+    const nsACString& aTopWindowCanonicalHostName, const uint32_t& aLoadFlags,
+    const RequestHeaderTuples& requestHeaders, const nsCString& requestMethod,
+    const Maybe<IPCStream>& uploadStream, const bool& uploadStreamHasHeaders,
+    const int16_t& priority, const uint32_t& classOfService,
+    const uint8_t& redirectionLimit, const bool& allowSTS,
+    const uint32_t& thirdPartyFlags, const bool& doResumeAt,
+    const uint64_t& startPos, const nsCString& entityID,
     const bool& chooseApplicationCache, const nsCString& appCacheClientID,
     const bool& allowSpdy, const bool& allowAltSvc, const bool& beConservative,
     const uint32_t& tlsFlags, const Maybe<LoadInfoArgs>& aLoadInfoArgs,
@@ -489,6 +491,8 @@ bool HttpChannelParent::DoAsyncOpen(
     httpChannel->SetContentBlockingAllowListPrincipal(
         aContentBlockingAllowListPrincipal);
   }
+
+  httpChannel->SetTopWindowCanonicalName(aTopWindowCanonicalHostName);
 
   if (aLoadFlags != nsIRequest::LOAD_NORMAL)
     httpChannel->SetLoadFlags(aLoadFlags);
@@ -2647,6 +2651,13 @@ HttpChannelParent::OnRedirectResult(bool succeeded) {
 void HttpChannelParent::OverrideReferrerInfoDuringBeginConnect(
     nsIReferrerInfo* aReferrerInfo) {
   Unused << SendOverrideReferrerInfoDuringBeginConnect(aReferrerInfo);
+}
+
+void HttpChannelParent::PropagateCanonicalHostName(
+    const nsACString& aHostName) {
+  if (!mIPCClosed) {
+    Unused << SendSetCanonicalHostName(PromiseFlatCString(aHostName));
+  }
 }
 
 }  // namespace net

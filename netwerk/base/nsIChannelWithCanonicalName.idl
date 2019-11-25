@@ -1,0 +1,18 @@
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+/**
+ * A channel that supports a canonical host name.
+ */
+[uuid(46a7e98b-626d-4a01-9a6a-9217396aaf91)]
+interface nsIChannelWithCanonicalName : nsISupports
+{
+    /**
+     * The canonical name of the host name from which the channel is being loaded.
+     */
+    [notxpcom] attribute ACString canonicalHostName;
+};

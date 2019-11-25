@@ -54,10 +54,10 @@ bool DocumentChannelParent::Init(const DocumentChannelCreationArgs& aArgs) {
 
   rv = NS_ERROR_UNEXPECTED;
   if (!mParent->Open(loadState, loadInfo, aArgs.loadFlags(), aArgs.cacheKey(),
-                     aArgs.channelId(), aArgs.asyncOpenTime(),
-                     aArgs.documentOpenFlags(), aArgs.pluginsAllowed(),
-                     aArgs.timing().refOr(nullptr), std::move(clientInfo),
-                     aArgs.outerWindowId(), &rv)) {
+                     aArgs.topWindowCanonicalHostName(), aArgs.channelId(),
+                     aArgs.asyncOpenTime(), aArgs.documentOpenFlags(),
+                     aArgs.pluginsAllowed(), aArgs.timing().refOr(nullptr),
+                     std::move(clientInfo), aArgs.outerWindowId(), &rv)) {
     return SendFailedAsyncOpen(rv);
   }
 
@@ -74,6 +74,13 @@ DocumentChannelParent::RedirectToRealChannel(uint32_t aRedirectFlags,
   RedirectToRealChannelArgs args;
   mParent->SerializeRedirectData(args, false, aRedirectFlags, aLoadFlags);
   return SendRedirectToRealChannel(args);
+}
+
+void DocumentChannelParent::PropagateCanonicalHostName(
+    const nsACString& aHostName) {
+  if (CanSend()) {
+    Unused << SendSetCanonicalHostName(PromiseFlatCString(aHostName));
+  }
 }
 
 }  // namespace net
