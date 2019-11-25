@@ -31,15 +31,23 @@ class ThirdPartyUtil final : public mozIThirdPartyUtil {
  private:
   ~ThirdPartyUtil();
 
-  bool IsThirdPartyInternal(const nsCString& aFirstDomain,
-                            const nsCString& aSecondDomain) {
+  bool IsThirdPartyInternal(const nsACString& aFirstDomain,
+                            const nsACString& aSecondDomain) {
     // Check strict equality.
     return aFirstDomain != aSecondDomain;
   }
-  nsresult IsThirdPartyInternal(const nsCString& aFirstDomain,
+  nsresult IsThirdPartyInternal(const nsACString& aFirstDomain,
                                 nsIURI* aSecondURI, bool* aResult);
 
   nsCString GetBaseDomainFromWindow(nsPIDOMWindowOuter* aWindow);
+
+  bool URIMatchesCanonicalHostName(nsIURI* aURI, const nsACString& aName);
+  bool PrincipalMatchesCanonicalHostName(nsIPrincipal* aPrincipal,
+                                         const nsACString& aName);
+
+  nsresult GetCanonicalHostNameFromWindow(mozIDOMWindowProxy* aWindow,
+                                          nsACString& aResult,
+                                          nsACString* aTopWindowResult);
 
   RefPtr<nsEffectiveTLDService> mTLDService;
 };

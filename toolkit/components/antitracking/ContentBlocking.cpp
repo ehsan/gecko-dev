@@ -641,6 +641,7 @@ bool ContentBlocking::ShouldAllowAccessFor(nsPIDOMWindowInner* aWindow,
     // Fission successfully:
     //   * The CookieJarSettings of the top BrowsingContext.
     //   * The HasStorageAccessGranted() API on BrowsingContext.
+    //   * The canonical name of the top document's channel.
     // For now, if we face an out-of-process top frame, instead of failing here,
     // we revert back to looking at the in-process top frame.  This is of course
     // the wrong thing to do, but we seem to have a number of tests in the tree
@@ -703,18 +704,10 @@ bool ContentBlocking::ShouldAllowAccessFor(nsPIDOMWindowInner* aWindow,
     return false;
   }
 
-  // As a performance optimization, we only perform this check for
-  // BEHAVIOR_REJECT_FOREIGN and BEHAVIOR_LIMIT_FOREIGN.  For
-  // BEHAVIOR_REJECT_TRACKER and BEHAVIOR_REJECT_TRACKER_AND_PARTITION_FOREIGN,
-  // third-partiness is implicily checked later below.
-  if (behavior != nsICookieService::BEHAVIOR_REJECT_TRACKER &&
-      behavior !=
-          nsICookieService::BEHAVIOR_REJECT_TRACKER_AND_PARTITION_FOREIGN) {
-    // Let's check if this is a 3rd party context.
-    if (!nsContentUtils::IsThirdPartyWindowOrChannel(aWindow, nullptr, aURI)) {
-      LOG(("Our window isn't a third-party window"));
-      return true;
-    }
+  // Let's check if this is a 3rd party context.
+  if (!nsContentUtils::IsThirdPartyWindowOrChannel(aWindow, nullptr, aURI)) {
+    LOG(("Our window isn't a third-party window"));
+    return true;
   }
 
   if (behavior == nsICookieService::BEHAVIOR_REJECT_FOREIGN ||

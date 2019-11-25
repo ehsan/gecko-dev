@@ -26,6 +26,7 @@
 #include "nsICacheStorage.h"
 #include "nsICacheEntry.h"
 #include "nsICryptoHash.h"
+#include "nsIDNSRecord.h"
 #include "nsIEffectiveTLDService.h"
 #include "nsIHttpHeaderVisitor.h"
 #include "nsINetworkInterceptController.h"
@@ -6692,11 +6693,19 @@ nsHttpChannel::GetOrCreateChannelClassifier() {
 }
 
 uint16_t nsHttpChannel::GetProxyDNSStrategy() {
-  // This function currently only supports returning DNS_PREFETCH_ORIGIN.
-  // Support for the rest of the DNS_* flags will be added later.
+  // This function currently only supports returning DNS_PREFETCH_ORIGIN and
+  // DNS_BLOCK_ON_ORIGIN_RESOLVE. Support for the rest of the DNS_* flags will
+  // be added later.
+
+  // If we need to consider the canonical name, we have to block on the prefetch
+  // outcome to become available.
+  bool considerCanonicalName =
+      StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
 
   if (!mProxyInfo) {
-    return DNS_PREFETCH_ORIGIN;
+    return considerCanonicalName
+               ? DNS_PREFETCH_ORIGIN | DNS_BLOCK_ON_ORIGIN_RESOLVE
+               : DNS_PREFETCH_ORIGIN;
   }
 
   nsAutoCString type;
@@ -6704,7 +6713,9 @@ uint16_t nsHttpChannel::GetProxyDNSStrategy() {
 
   if (!StaticPrefs::network_proxy_socks_remote_dns()) {
     if (type.EqualsLiteral("socks")) {
-      return DNS_PREFETCH_ORIGIN;
+      return considerCanonicalName
+                 ? DNS_PREFETCH_ORIGIN | DNS_BLOCK_ON_ORIGIN_RESOLVE
+                 : DNS_PREFETCH_ORIGIN;
     }
   }
 
@@ -6993,10 +7004,36 @@ nsresult nsHttpChannel::MaybeStartDNSPrefetch() {
 
       // Resolved in OnLookupComplete.
       mDNSBlockingThenable = mDNSBlockingPromise.Ensure(__func__);
+
+      nsCOMPtr<nsISerialEventTarget> target(do_GetMainThread());
+      RefPtr<nsHttpChannel> self(this);
+      mDNSBlockingThenable->Then(
+          target, __func__,
+          [self](const nsCOMPtr<nsIDNSRecord>& aRec) {
+            if (aRec) {
+              Unused << aRec->GetCanonicalName(self->mCanonicalName);
+            }
+
+            self->PropagateCanonicalHostNameToParentChannel();
+          },
+          [self](nsresult err) {
+            self->PropagateCanonicalHostNameToParentChannel();
+          });
     }
   }
 
   return NS_OK;
+}
+
+void nsHttpChannel::PropagateCanonicalHostNameToParentChannel() {
+  nsCOMPtr<nsIParentChannel> parentChannel;
+  NS_QueryNotificationCallbacks(this, parentChannel);
+  if (RefPtr<HttpChannelParent> httpParent = do_QueryObject(parentChannel)) {
+    httpParent->PropagateCanonicalHostName(mCanonicalName);
+  } else if (RefPtr<DocumentLoadListener> docParent =
+                 do_QueryObject(parentChannel)) {
+    docParent->PropagateCanonicalHostName(mCanonicalName);
+  }
 }
 
 NS_IMETHODIMP

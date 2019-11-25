@@ -311,6 +311,8 @@ class nsHttpChannel final : public HttpBaseChannel,
   nsresult MaybeResolveProxyAndBeginConnect();
   nsresult MaybeStartDNSPrefetch();
 
+  void PropagateCanonicalHostNameToParentChannel();
+
   // Tells the channel to resolve the origin of the end server we are connecting
   // to.
   static uint16_t const DNS_PREFETCH_ORIGIN = 1 << 0;

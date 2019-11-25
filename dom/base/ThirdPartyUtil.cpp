@@ -24,6 +24,7 @@
 #include "mozilla/ContentBlockingAllowList.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/Logging.h"
+#include "mozilla/StaticPrefs_privacy.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/TextUtils.h"
 #include "mozilla/Unused.h"
@@ -83,7 +84,7 @@ ThirdPartyUtil* ThirdPartyUtil::GetInstance() {
 // Determine if aFirstDomain is a different base domain to aSecondURI; or, if
 // the concept of base domain does not apply, determine if the two hosts are not
 // string-identical.
-nsresult ThirdPartyUtil::IsThirdPartyInternal(const nsCString& aFirstDomain,
+nsresult ThirdPartyUtil::IsThirdPartyInternal(const nsACString& aFirstDomain,
                                               nsIURI* aSecondURI,
                                               bool* aResult) {
   if (!aSecondURI) {
@@ -93,8 +94,9 @@ nsresult ThirdPartyUtil::IsThirdPartyInternal(const nsCString& aFirstDomain,
   // Get the base domain for aSecondURI.
   nsAutoCString secondDomain;
   nsresult rv = GetBaseDomain(aSecondURI, secondDomain);
-  LOG(("ThirdPartyUtil::IsThirdPartyInternal %s =? %s", aFirstDomain.get(),
-       secondDomain.get()));
+  LOG(("ThirdPartyUtil::IsThirdPartyInternal %s =? %s",
+       PromiseFlatCString(aFirstDomain).get(),
+       PromiseFlatCString(secondDomain).get()));
   if (NS_FAILED(rv)) return rv;
 
   *aResult = IsThirdPartyInternal(aFirstDomain, secondDomain);
@@ -131,6 +133,12 @@ ThirdPartyUtil::GetPrincipalFromWindow(mozIDOMWindowProxy* aWin,
 NS_IMETHODIMP
 ThirdPartyUtil::GetCanonicalHostNameFromWindow(mozIDOMWindowProxy* aWindow,
                                                nsACString& aResult) {
+  return GetCanonicalHostNameFromWindow(aWindow, aResult, nullptr);
+}
+
+nsresult ThirdPartyUtil::GetCanonicalHostNameFromWindow(
+    mozIDOMWindowProxy* aWindow, nsACString& aResult,
+    nsACString* aTopWindowResult) {
   MOZ_ASSERT(StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname());
 
   Document* doc = nsPIDOMWindowOuter::From(aWindow)->GetExtantDoc();
@@ -148,7 +156,37 @@ ThirdPartyUtil::GetCanonicalHostNameFromWindow(mozIDOMWindowProxy* aWindow,
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
+  if (aTopWindowResult) {
+    nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal =
+        do_QueryInterface(chan);
+    if (httpChannelInternal) {
+      *aTopWindowResult = httpChannelInternal->GetTopWindowCanonicalHostName();
+    }
+  }
   return NS_OK;
+}
+
+bool ThirdPartyUtil::URIMatchesCanonicalHostName(nsIURI* aURI,
+                                                 const nsACString& aName) {
+  if (!StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname() ||
+      !aURI) {
+    return false;
+  }
+
+  bool result = false;
+  Unused << IsThirdPartyInternal(aName, aURI, &result);
+
+  return !result;
+}
+
+bool ThirdPartyUtil::PrincipalMatchesCanonicalHostName(
+    nsIPrincipal* aPrincipal, const nsACString& aName) {
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+  return URIMatchesCanonicalHostName(uri, aName);
 }
 
 // Get the URI associated with a window.
@@ -231,6 +269,8 @@ ThirdPartyUtil::IsThirdPartyWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
   NS_ENSURE_ARG(aWindow);
   NS_ASSERTION(aResult, "null outparam pointer");
 
+  bool canonicalHostNameWasMaterial = false;
+
   bool result;
 
   // Ignore about:blank URIs here since they have no domain and attempting to
@@ -246,8 +286,24 @@ ThirdPartyUtil::IsThirdPartyWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
     }
 
     if (result) {
-      *aResult = true;
-      return NS_OK;
+      bool considerCanonicalHostName =
+          StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
+      nsAutoCString canonicalHostName, canonicalTopWindowHostName;
+      if (considerCanonicalHostName) {
+        rv = GetCanonicalHostNameFromWindow(nsPIDOMWindowOuter::From(aWindow),
+                                            canonicalHostName,
+                                            &canonicalTopWindowHostName);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+
+      if (considerCanonicalHostName &&
+          (URIMatchesCanonicalHostName(aURI, canonicalHostName) ||
+           URIMatchesCanonicalHostName(aURI, canonicalTopWindowHostName))) {
+        canonicalHostNameWasMaterial = true;
+      } else {
+        *aResult = true;
+        return NS_OK;
+      }
     }
   }
 
@@ -270,7 +326,8 @@ ThirdPartyUtil::IsThirdPartyWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
       // party), since GetInProcessScriptableParent above explicitly does not
       // go beyond process boundaries. In either case, we already know the
       // result.
-      *aResult = browsingContext->IsContentSubframe();
+      *aResult =
+          browsingContext->IsContentSubframe() && !canonicalHostNameWasMaterial;
       return NS_OK;
     }
 
@@ -288,8 +345,22 @@ ThirdPartyUtil::IsThirdPartyWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
     }
 
     if (result) {
-      *aResult = true;
-      return NS_OK;
+      bool considerCanonicalHostName =
+          StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
+      nsAutoCString canonicalHostName;
+      if (considerCanonicalHostName) {
+        rv = GetCanonicalHostNameFromWindow(parent, canonicalHostName);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+
+      if (considerCanonicalHostName &&
+          PrincipalMatchesCanonicalHostName(currentPrincipal,
+                                            canonicalHostName)) {
+        canonicalHostNameWasMaterial = true;
+      } else {
+        *aResult = true;
+        return NS_OK;
+      }
     }
 
     current = parent;
@@ -311,6 +382,7 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel, nsIURI* aURI,
 
   nsresult rv;
   bool doForce = false;
+  nsAutoCString canonicalHost;
   nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal =
       do_QueryInterface(aChannel);
   if (httpChannelInternal) {
@@ -328,6 +400,10 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel, nsIURI* aURI,
     if (doForce && !aURI) {
       *aResult = false;
       return NS_OK;
+    }
+
+    if (StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname()) {
+      canonicalHost = httpChannelInternal->GetTopWindowCanonicalHostName();
     }
   }
 
@@ -361,6 +437,10 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel, nsIURI* aURI,
           "Found channel with no loadinfo, assuming third-party request");
       parentIsThird = true;
     }
+  }
+
+  if (URIMatchesCanonicalHostName(aURI, canonicalHost)) {
+    parentIsThird = false;
   }
 
   // If we're not comparing to a URI, we have our answer. Otherwise, if

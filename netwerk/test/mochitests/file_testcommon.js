@@ -14,7 +14,12 @@ function setupTest(uri, cookies, loads) {
 
   var prefSet = new Promise(resolve => {
     SpecialPowers.pushPrefEnv(
-      { set: [["network.cookie.cookieBehavior", 1]] },
+      {
+        set: [
+          ["network.cookie.cookieBehavior", 1],
+          ["privacy.thirdparty.consider_top_canonical_hostname", false],
+        ],
+      },
       resolve
     );
   });
