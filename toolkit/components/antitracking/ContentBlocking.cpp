@@ -14,7 +14,7 @@
 #include "mozilla/dom/BrowsingContext.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/StaticPrefs_privacy.h"
-#include "mozIThirdPartyUtil.h"
+#include "ThirdPartyUtil.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindowInner.h"
 #include "nsIClassifiedChannel.h"
@@ -372,7 +372,8 @@ ContentBlocking::AllowAccessFor(
     } else if (behavior == nsICookieService::
                                BEHAVIOR_REJECT_TRACKER_AND_PARTITION_FOREIGN) {
       isThirdParty = nsContentUtils::IsThirdPartyWindowOrChannel(
-          parentWindow, nullptr, nullptr);
+          parentWindow, nullptr, nullptr,
+          CanonicalNameConsiderations::ConsiderCanonicalName);
     }
 
     if (!isThirdParty) {
@@ -705,8 +706,32 @@ bool ContentBlocking::ShouldAllowAccessFor(nsPIDOMWindowInner* aWindow,
   }
 
   // Let's check if this is a 3rd party context.
-  if (!nsContentUtils::IsThirdPartyWindowOrChannel(aWindow, nullptr, aURI)) {
-    LOG(("Our window isn't a third-party window"));
+  bool canonicalHostNameWasMaterial = false;
+  bool thirdParty = nsContentUtils::IsThirdPartyWindowOrChannel(
+      aWindow, nullptr, aURI,
+      CanonicalNameConsiderations::ConsiderCanonicalName,
+      &canonicalHostNameWasMaterial);
+
+  // Grant if it's not a 3rd party.
+  if (!thirdParty) {
+    LOG(("Our window isn't a third-party window%s",
+         canonicalHostNameWasMaterial
+             ? ", canonical host name was material in making this decision"
+             : ""));
+
+    if (canonicalHostNameWasMaterial) {
+      if (document->CookieJarSettings()->GetRejectThirdPartyTrackers()) {
+        // Only grant partitioned storage access for extra safety when the
+        // canonical host name heuristics were used.
+        LOG(("Partitioning the third-party content before granting access"));
+        document->CookieJarSettings()->SetPartitionForeign(true);
+      } else {
+        LOG(("Granting partitioned access"));
+      }
+      *aRejectedReason =
+          nsIWebProgressListener::STATE_COOKIES_PARTITIONED_FOREIGN;
+      return false;
+    }
     return true;
   }
 
@@ -751,8 +776,9 @@ bool ContentBlocking::ShouldAllowAccessFor(nsPIDOMWindowInner* aWindow,
                nsICookieService::BEHAVIOR_REJECT_TRACKER_AND_PARTITION_FOREIGN);
     if (nsContentUtils::IsThirdPartyTrackingResourceWindow(aWindow)) {
       // fall through
-    } else if (nsContentUtils::IsThirdPartyWindowOrChannel(aWindow, nullptr,
-                                                           aURI)) {
+    } else if (nsContentUtils::IsThirdPartyWindowOrChannel(
+                   aWindow, nullptr, aURI,
+                   CanonicalNameConsiderations::ConsiderCanonicalName)) {
       LOG(("We're in the third-party context, storage should be partitioned"));
       // fall through, but remember that we're partitioning.
       blockedReason = nsIWebProgressListener::STATE_COOKIES_PARTITIONED_FOREIGN;
@@ -771,8 +797,11 @@ bool ContentBlocking::ShouldAllowAccessFor(nsPIDOMWindowInner* aWindow,
     // The result of this assertion depends on whether IsThirdPartyWindow
     // succeeds, because otherwise IsThirdPartyWindowOrChannel artificially
     // fails.
-    MOZ_ASSERT_IF(NS_SUCCEEDED(rv), nsContentUtils::IsThirdPartyWindowOrChannel(
-                                        aWindow, nullptr, aURI) == thirdParty);
+    MOZ_ASSERT_IF(
+        NS_SUCCEEDED(rv),
+        nsContentUtils::IsThirdPartyWindowOrChannel(
+            aWindow, nullptr, aURI,
+            CanonicalNameConsiderations::ConsiderCanonicalName) == thirdParty);
   }
 #endif
 
@@ -942,20 +971,40 @@ bool ContentBlocking::ShouldAllowAccessFor(nsIChannel* aChannel, nsIURI* aURI,
     return false;
   }
 
-  nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil = services::GetThirdPartyUtil();
+  ThirdPartyUtil* thirdPartyUtil = ThirdPartyUtil::GetInstance();
   if (!thirdPartyUtil) {
     LOG(("No thirdPartyUtil, bail out early"));
     return true;
   }
 
   bool thirdParty = false;
-  rv = thirdPartyUtil->IsThirdPartyChannel(aChannel, aURI, &thirdParty);
+  bool canonicalHostNameWasMaterial = false;
+  rv = thirdPartyUtil->CheckChannel(
+      aChannel, aURI, CanonicalNameConsiderations::ConsiderCanonicalName,
+      &thirdParty, &canonicalHostNameWasMaterial);
   // Grant if it's not a 3rd party.
-  // Be careful to check the return value of IsThirdPartyChannel, since
-  // IsThirdPartyChannel() will fail if the channel's loading principal is the
-  // system principal...
+  // Be careful to check the return value of CheckChannel, since CheckChannel()
+  // will fail if the channel's loading principal is the system principal...
   if (NS_SUCCEEDED(rv) && !thirdParty) {
-    LOG(("Our channel isn't a third-party channel"));
+    LOG(("Our channel isn't a third-party channel%s",
+         canonicalHostNameWasMaterial
+             ? ", canonical host name was material in making this decision"
+             : ""));
+
+    if (canonicalHostNameWasMaterial) {
+      if (behavior == nsICookieService::BEHAVIOR_REJECT_TRACKER) {
+        // Only grant partitioned storage access for extra safety when the
+        // canonical host name heuristics were used.
+        LOG(("Partitioning the third-party content before granting access"));
+        cookieJarSettings->SetPartitionForeign(true);
+        ContentBlockingNotifier::OnPartitionForeign(aChannel);
+      } else {
+        LOG(("Granting partitioned access"));
+      }
+      *aRejectedReason =
+          nsIWebProgressListener::STATE_COOKIES_PARTITIONED_FOREIGN;
+      return false;
+    }
     return true;
   }
 
@@ -1002,8 +1051,9 @@ bool ContentBlocking::ShouldAllowAccessFor(nsIChannel* aChannel, nsIURI* aURI,
     if (classifiedChannel &&
         classifiedChannel->IsThirdPartyTrackingResource()) {
       // fall through
-    } else if (nsContentUtils::IsThirdPartyWindowOrChannel(nullptr, aChannel,
-                                                           aURI)) {
+    } else if (nsContentUtils::IsThirdPartyWindowOrChannel(
+                   nullptr, aChannel, aURI,
+                   CanonicalNameConsiderations::ConsiderCanonicalName)) {
       LOG(("We're in the third-party context, storage should be partitioned"));
       // fall through but remember that we're partitioning.
       blockedReason = nsIWebProgressListener::STATE_COOKIES_PARTITIONED_FOREIGN;
@@ -1120,8 +1170,9 @@ bool ContentBlocking::ApproximateAllowAccessForWithoutChannel(
     return true;
   }
 
-  if (!nsContentUtils::IsThirdPartyWindowOrChannel(aFirstPartyWindow, nullptr,
-                                                   aURI)) {
+  if (!nsContentUtils::IsThirdPartyWindowOrChannel(
+          aFirstPartyWindow, nullptr, aURI,
+          CanonicalNameConsiderations::ConsiderCanonicalName)) {
     LOG(("Our window isn't a third-party window"));
     return true;
   }

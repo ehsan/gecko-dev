@@ -11,6 +11,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/Document.h"
 #include "nsCOMPtr.h"
+#include "nsContentUtils.h"
 #include "nsEffectiveTLDService.h"
 #include "nsString.h"
 #include "nsPIDOMWindow.h"
@@ -28,6 +29,17 @@ class ThirdPartyUtil final : public mozIThirdPartyUtil {
   static void Startup();
   static ThirdPartyUtil* GetInstance();
 
+  nsresult CheckWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
+                       CanonicalNameConsiderations aConsiderations,
+                       bool* aResult, bool* aCanonicalHostNameWasMaterial);
+  nsresult CheckChannel(nsIChannel* aChannel, nsIURI* aURI,
+                        CanonicalNameConsiderations aConsiderations,
+                        bool* aResult, bool* aCanonicalHostNameWasMaterial);
+
+  bool URIMatchesCanonicalHostName(nsIURI* aURI, const nsACString& aName);
+  nsresult IsThirdPartyInternal(const nsACString& aFirstDomain,
+                                nsIURI* aSecondURI, bool* aResult);
+
  private:
   ~ThirdPartyUtil();
 
@@ -36,12 +48,9 @@ class ThirdPartyUtil final : public mozIThirdPartyUtil {
     // Check strict equality.
     return aFirstDomain != aSecondDomain;
   }
-  nsresult IsThirdPartyInternal(const nsACString& aFirstDomain,
-                                nsIURI* aSecondURI, bool* aResult);
 
   nsCString GetBaseDomainFromWindow(nsPIDOMWindowOuter* aWindow);
 
-  bool URIMatchesCanonicalHostName(nsIURI* aURI, const nsACString& aName);
   bool PrincipalMatchesCanonicalHostName(nsIPrincipal* aPrincipal,
                                          const nsACString& aName);
 

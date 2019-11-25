@@ -210,6 +210,11 @@ struct EventNameMapping {
   bool mMaybeSpecialSVGorSMILEvent;
 };
 
+enum class CanonicalNameConsiderations {
+  ConsiderCanonicalName,
+  DontConsiderCanonicalName
+};
+
 class nsContentUtils {
   friend class nsAutoScriptBlockerSuppressNodeRemoved;
   typedef mozilla::dom::Element Element;
@@ -2928,8 +2933,11 @@ class nsContentUtils {
   /*
    * Returns true if this window/channel is a 3rd party context.
    */
-  static bool IsThirdPartyWindowOrChannel(nsPIDOMWindowInner* aWindow,
-                                          nsIChannel* aChannel, nsIURI* aURI);
+  static bool IsThirdPartyWindowOrChannel(
+      nsPIDOMWindowInner* aWindow, nsIChannel* aChannel, nsIURI* aURI,
+      CanonicalNameConsiderations aConsiderations =
+          CanonicalNameConsiderations::DontConsiderCanonicalName,
+      bool* aCanonicalHostNameWasMaterial = nullptr);
 
   /*
    * Returns true if this window's channel has been marked as a third-party

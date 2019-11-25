@@ -60,6 +60,7 @@ UNIFIED_SOURCES += [
 ]
 
 LOCAL_INCLUDES += [
+    '/dom/base',
     '/extensions/permissions',
 ]
 

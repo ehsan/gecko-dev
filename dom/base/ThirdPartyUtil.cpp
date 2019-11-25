@@ -24,6 +24,7 @@
 #include "mozilla/ContentBlockingAllowList.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/Logging.h"
+#include "mozilla/ScopeExit.h"
 #include "mozilla/StaticPrefs_privacy.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/TextUtils.h"
@@ -266,10 +267,27 @@ ThirdPartyUtil::IsThirdPartyURI(nsIURI* aFirstURI, nsIURI* aSecondURI,
 NS_IMETHODIMP
 ThirdPartyUtil::IsThirdPartyWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
                                    bool* aResult) {
+  return CheckWindow(aWindow, aURI,
+                     CanonicalNameConsiderations::DontConsiderCanonicalName,
+                     aResult, nullptr);
+}
+
+nsresult ThirdPartyUtil::CheckWindow(
+    mozIDOMWindowProxy* aWindow, nsIURI* aURI,
+    CanonicalNameConsiderations aConsiderations, bool* aResult,
+    bool* aCanonicalHostNameWasMaterial) {
   NS_ENSURE_ARG(aWindow);
   NS_ASSERTION(aResult, "null outparam pointer");
 
   bool canonicalHostNameWasMaterial = false;
+  bool considerCanonicalHostName =
+      aConsiderations == CanonicalNameConsiderations::ConsiderCanonicalName &&
+      StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
+  auto cleanUp = MakeScopeExit([&] {
+    if (aCanonicalHostNameWasMaterial) {
+      *aCanonicalHostNameWasMaterial = canonicalHostNameWasMaterial;
+    }
+  });
 
   bool result;
 
@@ -286,8 +304,6 @@ ThirdPartyUtil::IsThirdPartyWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
     }
 
     if (result) {
-      bool considerCanonicalHostName =
-          StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
       nsAutoCString canonicalHostName, canonicalTopWindowHostName;
       if (considerCanonicalHostName) {
         rv = GetCanonicalHostNameFromWindow(nsPIDOMWindowOuter::From(aWindow),
@@ -345,8 +361,6 @@ ThirdPartyUtil::IsThirdPartyWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
     }
 
     if (result) {
-      bool considerCanonicalHostName =
-          StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
       nsAutoCString canonicalHostName;
       if (considerCanonicalHostName) {
         rv = GetCanonicalHostNameFromWindow(parent, canonicalHostName);
@@ -376,9 +390,25 @@ ThirdPartyUtil::IsThirdPartyWindow(mozIDOMWindowProxy* aWindow, nsIURI* aURI,
 NS_IMETHODIMP
 ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel, nsIURI* aURI,
                                     bool* aResult) {
+  return CheckChannel(aChannel, aURI,
+                      CanonicalNameConsiderations::DontConsiderCanonicalName,
+                      aResult, nullptr);
+}
+
+nsresult ThirdPartyUtil::CheckChannel(
+    nsIChannel* aChannel, nsIURI* aURI,
+    CanonicalNameConsiderations aConsiderations, bool* aResult,
+    bool* aCanonicalHostNameWasMaterial) {
   LOG(("ThirdPartyUtil::IsThirdPartyChannel [channel=%p]", aChannel));
   NS_ENSURE_ARG(aChannel);
   NS_ASSERTION(aResult, "null outparam pointer");
+
+  bool considerCanonicalHostName =
+      aConsiderations == CanonicalNameConsiderations::ConsiderCanonicalName &&
+      StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
+  if (aCanonicalHostNameWasMaterial) {
+    *aCanonicalHostNameWasMaterial = false;
+  }
 
   nsresult rv;
   bool doForce = false;
@@ -402,7 +432,7 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel, nsIURI* aURI,
       return NS_OK;
     }
 
-    if (StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname()) {
+    if (considerCanonicalHostName) {
       canonicalHost = httpChannelInternal->GetTopWindowCanonicalHostName();
     }
   }
@@ -439,8 +469,14 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel, nsIURI* aURI,
     }
   }
 
-  if (URIMatchesCanonicalHostName(aURI, canonicalHost)) {
+  // Only impact aCanonicalHostNameWasMaterial if our parent is a third-party,
+  // otherwise even if we obtain a canonical host name match here it wouldn't
+  // have made a difference anyway.
+  if (parentIsThird && URIMatchesCanonicalHostName(aURI, canonicalHost)) {
     parentIsThird = false;
+    if (aCanonicalHostNameWasMaterial) {
+      *aCanonicalHostNameWasMaterial = true;
+    }
   }
 
   // If we're not comparing to a URI, we have our answer. Otherwise, if
@@ -572,7 +608,9 @@ ThirdPartyUtil::AnalyzeChannel(nsIChannel* aChannel, bool aNotify, nsIURI* aURI,
   bool isForeign = true;
   if (aChannel &&
       (!aRequireThirdPartyCheck || aRequireThirdPartyCheck(loadInfo))) {
-    IsThirdPartyChannel(aChannel, aURI ? aURI : uri.get(), &isForeign);
+    CheckChannel(aChannel, aURI ? aURI : uri.get(),
+                 CanonicalNameConsiderations::ConsiderCanonicalName, &isForeign,
+                 nullptr);
   }
   if (isForeign) {
     result += ThirdPartyAnalysis::IsForeign;

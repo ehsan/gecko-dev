@@ -153,6 +153,7 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsICategoryManager.h"
 #include "nsIChannelEventSink.h"
+#include "nsIChannelWithCanonicalName.h"
 #include "nsIConsoleService.h"
 #include "nsIContent.h"
 #include "nsIContentInlines.h"
@@ -8112,9 +8113,10 @@ bool nsContentUtils::IsNonSubresourceInternalPolicyType(
 }
 
 // static public
-bool nsContentUtils::IsThirdPartyWindowOrChannel(nsPIDOMWindowInner* aWindow,
-                                                 nsIChannel* aChannel,
-                                                 nsIURI* aURI) {
+bool nsContentUtils::IsThirdPartyWindowOrChannel(
+    nsPIDOMWindowInner* aWindow, nsIChannel* aChannel, nsIURI* aURI,
+    CanonicalNameConsiderations aConsiderations,
+    bool* aCanonicalHostNameWasMaterial) {
   MOZ_ASSERT(!aWindow || !aChannel,
              "A window and channel should not both be provided.");
 
@@ -8127,8 +8129,9 @@ bool nsContentUtils::IsThirdPartyWindowOrChannel(nsPIDOMWindowInner* aWindow,
   bool thirdParty = false;
 
   if (aWindow) {
-    nsresult rv = thirdPartyUtil->IsThirdPartyWindow(aWindow->GetOuterWindow(),
-                                                     aURI, &thirdParty);
+    nsresult rv = thirdPartyUtil->CheckWindow(aWindow->GetOuterWindow(), aURI,
+                                              aConsiderations, &thirdParty,
+                                              aCanonicalHostNameWasMaterial);
     if (NS_FAILED(rv)) {
       // Ideally we would do something similar to the channel code path here,
       // but existing code depends on this behaviour.
@@ -8141,8 +8144,9 @@ bool nsContentUtils::IsThirdPartyWindowOrChannel(nsPIDOMWindowInner* aWindow,
     // use nsILoadInfo.isThirdPartyContext.  That nsILoadInfo property only
     // indicates if the parent loading window is third party or not.  We
     // want to check the channel URI against the loading principal as well.
-    nsresult rv =
-        thirdPartyUtil->IsThirdPartyChannel(aChannel, nullptr, &thirdParty);
+    nsresult rv = thirdPartyUtil->CheckChannel(aChannel, nullptr,
+                                               aConsiderations, &thirdParty,
+                                               aCanonicalHostNameWasMaterial);
     if (NS_FAILED(rv)) {
       // Assume third-party in case of failure
       thirdParty = true;
@@ -8164,6 +8168,48 @@ bool nsContentUtils::IsThirdPartyWindowOrChannel(nsPIDOMWindowInner* aWindow,
                                              &isThirdPartyWindow);
         if (NS_SUCCEEDED(rv)) {
           thirdParty = thirdParty && isThirdPartyWindow;
+
+          if (thirdParty &&
+              aConsiderations ==
+                  CanonicalNameConsiderations::ConsiderCanonicalName) {
+            auto& canonicalTopHostName = chan->GetTopWindowCanonicalHostName();
+            if (thirdPartyUtil->URIMatchesCanonicalHostName(
+                    aURI, canonicalTopHostName)) {
+              thirdParty = false;
+              if (aCanonicalHostNameWasMaterial) {
+                *aCanonicalHostNameWasMaterial = true;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (!thirdParty &&
+        aConsiderations == CanonicalNameConsiderations::ConsiderCanonicalName) {
+      nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(aChannel);
+      if (cwcn) {
+        auto& canonicalHost = cwcn->GetCanonicalHostName();
+
+        // Obtain the URI from the channel, and its base domain.
+        nsCOMPtr<nsIURI> channelURI;
+        rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(channelURI));
+        if (NS_FAILED(rv)) return false;
+
+        nsAutoCString channelDomain;
+        rv = thirdPartyUtil->GetBaseDomain(channelURI, channelDomain);
+        if (NS_FAILED(rv)) return false;
+
+        rv = thirdPartyUtil->GetBaseDomainFromSchemeHost(
+            EmptyCString(), canonicalHost, channelDomain);
+        if (NS_FAILED(rv)) return false;
+
+        rv = thirdPartyUtil->IsThirdPartyInternal(channelDomain, aURI,
+                                                  &thirdParty);
+        if (NS_FAILED(rv)) return false;
+
+        if (aCanonicalHostNameWasMaterial) {
+          *aCanonicalHostNameWasMaterial = true;
         }
       }
     }
