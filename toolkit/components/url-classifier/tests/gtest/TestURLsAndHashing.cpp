@@ -9,8 +9,14 @@
 
 static void VerifyFragments(const nsACString& aURL,
                             const nsTArray<nsCString>& aExpected) {
+  nsCOMPtr<nsIURI> uri;
+  nsAutoCString url("https://");
+  url.Append(aURL);
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), url);
+  ASSERT_EQ(rv, NS_OK) << "NS_NewURI should not fail with " << aURL;
+
   nsTArray<nsCString> fragments;
-  nsresult rv = LookupCache::GetLookupFragments(aURL, &fragments);
+  rv = LookupCache::GetLookupFragments(uri, aURL, EmptyCString(), &fragments);
   ASSERT_EQ(rv, NS_OK) << "GetLookupFragments should not fail";
 
   ASSERT_EQ(aExpected.Length(), fragments.Length())

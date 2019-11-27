@@ -2253,6 +2253,7 @@ class SpecialPowersChild extends JSWindowActorChild {
     return classifierService.classify(
       WrapPrivileged.unwrap(principal),
       eventTarget,
+      "",
       wrapCallback
     );
   }
@@ -2285,6 +2286,7 @@ class SpecialPowersChild extends JSWindowActorChild {
       WrapPrivileged.unwrap(uri),
       [feature],
       Ci.nsIUrlClassifierFeature.blacklist,
+      "",
       wrapCallback
     );
   }

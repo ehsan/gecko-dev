@@ -556,19 +556,21 @@ class ContentParent final
   virtual int32_t Pid() const override;
 
   // PURLClassifierParent.
-  PURLClassifierParent* AllocPURLClassifierParent(const Principal& aPrincipal,
-                                                  bool* aSuccess);
+  PURLClassifierParent* AllocPURLClassifierParent(
+      const Principal& aPrincipal, const nsCString& aCanonicalHostName,
+      bool* aSuccess);
   virtual mozilla::ipc::IPCResult RecvPURLClassifierConstructor(
       PURLClassifierParent* aActor, const Principal& aPrincipal,
-      bool* aSuccess) override;
+      const nsCString& aCanonicalHostName, bool* aSuccess) override;
 
   // PURLClassifierLocalParent.
   PURLClassifierLocalParent* AllocPURLClassifierLocalParent(
-      const URIParams& aURI,
+      const URIParams& aURI, const nsCString& aCanonicalHostName,
       const nsTArray<IPCURLClassifierFeature>& aFeatures);
 
   virtual mozilla::ipc::IPCResult RecvPURLClassifierLocalConstructor(
       PURLClassifierLocalParent* aActor, const URIParams& aURI,
+      const nsCString& aCanonicalHostName,
       nsTArray<IPCURLClassifierFeature>&& aFeatures) override;
 
   PLoginReputationParent* AllocPLoginReputationParent(const URIParams& aURI);

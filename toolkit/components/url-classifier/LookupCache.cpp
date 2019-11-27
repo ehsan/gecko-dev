@@ -422,8 +422,11 @@ bool LookupCache::IsCanonicalizedIP(const nsACString& aHost) {
 // whitelisted domain is eTLD.
 /* static */
 nsresult LookupCache::GetLookupWhitelistFragments(
-    const nsACString& aSpec, nsTArray<nsCString>* aFragments) {
+    nsIURI* aInnermostURI, const nsACString& aSpec,
+    const nsACString& aCanonicalHostName, nsTArray<nsCString>* aFragments) {
   aFragments->Clear();
+
+  // TODO: main fix
 
   nsACString::const_iterator begin, end, iter, iter_end;
   aSpec.BeginReading(begin);
@@ -436,7 +439,8 @@ nsresult LookupCache::GetLookupWhitelistFragments(
   // "/?resoruce=" because this means the URL is not generated in
   // CreatePairwiseWhiteListURI()
   if (!FindInReadable(NS_LITERAL_CSTRING("/?resource="), iter, iter_end)) {
-    return GetLookupFragments(aSpec, aFragments);
+    return GetLookupFragments(aInnermostURI, aSpec, aCanonicalHostName,
+                              aFragments);
   }
 
   const nsACString& topLevelURL = Substring(begin, iter++);
@@ -505,11 +509,14 @@ nsresult LookupCache::GetLookupWhitelistFragments(
 }
 
 /* static */
-nsresult LookupCache::GetLookupFragments(const nsACString& aSpec,
+nsresult LookupCache::GetLookupFragments(nsIURI* aURI, const nsACString& aSpec,
+                                         const nsACString& aCanonicalHostName,
                                          nsTArray<nsCString>* aFragments)
 
 {
   aFragments->Clear();
+
+  // TODO: main fix
 
   nsACString::const_iterator begin, end, iter;
   aSpec.BeginReading(begin);

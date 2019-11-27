@@ -3384,7 +3384,8 @@ void ContentChild::FatalErrorIfNotUsingGPUProcess(const char* const aErrorMsg,
 }
 
 PURLClassifierChild* ContentChild::AllocPURLClassifierChild(
-    const Principal& aPrincipal, bool* aSuccess) {
+    const Principal& aPrincipal, const nsCString& aCanonicalHostName,
+    bool* aSuccess) {
   *aSuccess = true;
   return new URLClassifierChild();
 }
@@ -3396,7 +3397,8 @@ bool ContentChild::DeallocPURLClassifierChild(PURLClassifierChild* aActor) {
 }
 
 PURLClassifierLocalChild* ContentChild::AllocPURLClassifierLocalChild(
-    const URIParams& aUri, const nsTArray<IPCURLClassifierFeature>& aFeatures) {
+    const URIParams& aUri, const nsCString& aCanonicalHostName,
+    const nsTArray<IPCURLClassifierFeature>& aFeatures) {
   return new URLClassifierLocalChild();
 }
 

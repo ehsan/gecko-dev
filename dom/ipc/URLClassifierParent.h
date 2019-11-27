@@ -28,6 +28,7 @@ class URLClassifierParent : public nsIURIClassifierCallback,
   NS_DECL_THREADSAFE_ISUPPORTS
 
   mozilla::ipc::IPCResult StartClassify(nsIPrincipal* aPrincipal,
+                                        const nsACString& aCanonicalHostName,
                                         bool* aSuccess);
 
   // nsIURIClassifierCallback.
@@ -68,7 +69,8 @@ class URLClassifierLocalParent : public nsIUrlClassifierFeatureCallback,
   NS_DECL_THREADSAFE_ISUPPORTS
 
   mozilla::ipc::IPCResult StartClassify(
-      nsIURI* aURI, const nsTArray<IPCURLClassifierFeature>& aFeatureNames);
+      nsIURI* aURI, const nsACString& aCanonicalHostName,
+      const nsTArray<IPCURLClassifierFeature>& aFeatureNames);
 
   // nsIUrlClassifierFeatureCallback.
   NS_IMETHOD

@@ -317,6 +317,7 @@ var State = {
         uri,
         [feature],
         Ci.nsIUrlClassifierFeature.blacklist,
+        "",
         list => {
           if (list.length) {
             this._trackingState.set(host, true);

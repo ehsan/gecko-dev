@@ -602,13 +602,14 @@ class ContentChild final
   }
 
   // PURLClassifierChild
-  PURLClassifierChild* AllocPURLClassifierChild(const Principal& aPrincipal,
-                                                bool* aSuccess);
+  PURLClassifierChild* AllocPURLClassifierChild(
+      const Principal& aPrincipal, const nsCString& aCanonicalHostName,
+      bool* aSuccess);
   bool DeallocPURLClassifierChild(PURLClassifierChild* aActor);
 
   // PURLClassifierLocalChild
   PURLClassifierLocalChild* AllocPURLClassifierLocalChild(
-      const URIParams& aUri,
+      const URIParams& aUri, const nsCString& aCanonicalHostName,
       const nsTArray<IPCURLClassifierFeature>& aFeatures);
   bool DeallocPURLClassifierLocalChild(PURLClassifierLocalChild* aActor);
 

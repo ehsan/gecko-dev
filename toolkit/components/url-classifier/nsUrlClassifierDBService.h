@@ -107,8 +107,9 @@ class nsUrlClassifierDBService final : public nsIUrlClassifierDBService,
   // Disallow copy constructor
   nsUrlClassifierDBService(nsUrlClassifierDBService&);
 
-  nsresult LookupURI(const nsACString& aKey, FeatureHolder* aHolder,
-                     nsIUrlClassifierCallback* c);
+  nsresult LookupURI(nsIURI* aInnermostURI, const nsACString& aKey,
+                     const nsACString& aCanonicalHostName,
+                     FeatureHolder* aHolder, nsIUrlClassifierCallback* c);
 
   // Post an event to worker thread to release objects when receive
   // 'quit-application'
@@ -156,7 +157,8 @@ class nsUrlClassifierDBServiceWorker final : public nsIUrlClassifierDBService {
                 nsUrlClassifierDBService* aDBService);
 
   // Queue a lookup for the worker to perform, called in the main thread.
-  nsresult QueueLookup(const nsACString& aLookupKey,
+  nsresult QueueLookup(nsIURI* aInnermostURI, const nsACString& aLookupKey,
+                       const nsACString& aCanonicalHostName,
                        nsUrlClassifierDBService::FeatureHolder* aFeatureHolder,
                        nsIUrlClassifierLookupCallback* aLallback);
 
@@ -215,7 +217,8 @@ class nsUrlClassifierDBServiceWorker final : public nsIUrlClassifierDBService {
   void ResetUpdate();
 
   // Perform a classifier lookup for a given url.
-  nsresult DoLookup(const nsACString& spec,
+  nsresult DoLookup(nsIURI* aInnermostURI, const nsACString& spec,
+                    const nsACString& aCanonicalHostName,
                     nsUrlClassifierDBService::FeatureHolder* aFeatureHolder,
                     nsIUrlClassifierLookupCallback* c);
 
@@ -261,6 +264,8 @@ class nsUrlClassifierDBServiceWorker final : public nsIUrlClassifierDBService {
     mozilla::TimeStamp mStartTime;
     nsCString mKey;
     RefPtr<nsUrlClassifierDBService::FeatureHolder> mFeatureHolder;
+    nsCOMPtr<nsIURI> mInnermostURI;
+    nsCString mCanonicalHostName;
     nsCOMPtr<nsIUrlClassifierLookupCallback> mCallback;
   };
 

@@ -13,6 +13,7 @@
 #include "mozilla/net/UrlClassifierFeatureResult.h"
 #include "nsContentUtils.h"
 #include "nsIChannel.h"
+#include "nsIChannelWithCanonicalName.h"
 #include "nsIHttpChannel.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
@@ -65,6 +66,7 @@ class URIData {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(URIData);
 
   static nsresult Create(nsIURI* aURI, nsIURI* aInnermostURI,
+                         const nsACString& aCanonicalHostName,
                          nsIUrlClassifierFeature::URIType aURIType,
                          URIData** aData);
 
@@ -79,13 +81,16 @@ class URIData {
   ~URIData();
 
   nsCOMPtr<nsIURI> mURI;
+  nsCOMPtr<nsIURI> mInnermostURI;
   nsCString mURISpec;
+  nsCString mCanonicalHostName;
   nsTArray<nsCString> mFragments;
   nsIUrlClassifierFeature::URIType mURIType;
 };
 
 /* static */
 nsresult URIData::Create(nsIURI* aURI, nsIURI* aInnermostURI,
+                         const nsACString& aCanonicalHostName,
                          nsIUrlClassifierFeature::URIType aURIType,
                          URIData** aData) {
   MOZ_ASSERT(NS_IsMainThread());
@@ -94,7 +99,9 @@ nsresult URIData::Create(nsIURI* aURI, nsIURI* aInnermostURI,
 
   RefPtr<URIData> data = new URIData();
   data->mURI = aURI;
+  data->mInnermostURI = aInnermostURI;
   data->mURIType = aURIType;
+  data->mCanonicalHostName = aCanonicalHostName;
 
   nsUrlClassifierUtils* utilsService = nsUrlClassifierUtils::GetInstance();
   if (NS_WARN_IF(!utilsService)) {
@@ -139,9 +146,11 @@ const nsTArray<nsCString>& URIData::Fragments() {
     nsresult rv;
 
     if (mURIType == nsIUrlClassifierFeature::pairwiseWhitelistURI) {
-      rv = LookupCache::GetLookupWhitelistFragments(mURISpec, &mFragments);
+      rv = LookupCache::GetLookupWhitelistFragments(
+          mInnermostURI, mURISpec, mCanonicalHostName, &mFragments);
     } else {
-      rv = LookupCache::GetLookupFragments(mURISpec, &mFragments);
+      rv = LookupCache::GetLookupFragments(mInnermostURI, mURISpec,
+                                           mCanonicalHostName, &mFragments);
     }
 
     Unused << NS_WARN_IF(NS_FAILED(rv));
@@ -518,6 +527,7 @@ class FeatureTask {
 
   nsresult GetOrCreateURIData(nsIURI* aURI, nsIURI* aInnermostURI,
                               nsIUrlClassifierFeature::URIType aURIType,
+                              const nsACString& aCanonicalHostName,
                               URIData** aData);
 
   nsresult GetOrCreateTableData(URIData* aURIData, const nsACString& aTable,
@@ -591,7 +601,8 @@ FeatureTask::~FeatureTask() {
 
 nsresult FeatureTask::GetOrCreateURIData(
     nsIURI* aURI, nsIURI* aInnermostURI,
-    nsIUrlClassifierFeature::URIType aURIType, URIData** aData) {
+    nsIUrlClassifierFeature::URIType aURIType,
+    const nsACString& aCanonicalHostName, URIData** aData) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aURI);
   MOZ_ASSERT(aInnermostURI);
@@ -614,8 +625,8 @@ nsresult FeatureTask::GetOrCreateURIData(
   }
 
   RefPtr<URIData> data;
-  nsresult rv =
-      URIData::Create(aURI, aInnermostURI, aURIType, getter_AddRefs(data));
+  nsresult rv = URIData::Create(aURI, aInnermostURI, aCanonicalHostName,
+                                aURIType, getter_AddRefs(data));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -732,6 +743,12 @@ nsresult FeatureData::InitializeList(
     return rv;
   }
 
+  nsAutoCString canonicalHostName;
+  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(aChannel);
+  if (cwcn) {
+    canonicalHostName = cwcn->GetCanonicalHostName();
+  }
+
   bool found = false;
   nsAutoCString tableName;
   rv = mFeature->HasHostInPreferences(host, aListType, tableName, &found);
@@ -744,7 +761,7 @@ nsresult FeatureData::InitializeList(
   }
 
   RefPtr<URIData> uriData;
-  rv = aTask->GetOrCreateURIData(uri, innermostURI, URIType,
+  rv = aTask->GetOrCreateURIData(uri, innermostURI, URIType, canonicalHostName,
                                  getter_AddRefs(uriData));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;

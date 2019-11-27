@@ -10,6 +10,7 @@
 #include "nsICacheEntry.h"
 #include "nsICachingChannel.h"
 #include "nsIChannel.h"
+#include "nsIChannelWithCanonicalName.h"
 #include "nsIObserverService.h"
 #include "nsIProtocolHandler.h"
 #include "nsIScriptSecurityManager.h"
@@ -199,6 +200,12 @@ nsresult nsChannelClassifier::StartInternal() {
                                                getter_AddRefs(principal));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsAutoCString canonicalHostName;
+  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(mChannel);
+  if (cwcn) {
+    canonicalHostName = cwcn->GetCanonicalHostName();
+  }
+
   bool expectCallback;
   if (UC_LOG_ENABLED()) {
     nsCOMPtr<nsIURI> principalURI;
@@ -210,7 +217,8 @@ nsresult nsChannelClassifier::StartInternal() {
   }
   // The classify is running in parent process, no need to give a valid event
   // target
-  rv = uriClassifier->Classify(principal, nullptr, this, &expectCallback);
+  rv = uriClassifier->Classify(principal, nullptr, canonicalHostName, this,
+                               &expectCallback);
   if (NS_FAILED(rv)) {
     return rv;
   }

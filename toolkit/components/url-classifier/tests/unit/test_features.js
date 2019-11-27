@@ -44,6 +44,7 @@ add_test(async _ => {
       uri,
       [feature],
       Ci.nsIUrlClassifierFeature.blacklist,
+      "",
       r => {
         resolve(r);
       }
@@ -63,6 +64,7 @@ add_test(async _ => {
       uri,
       [feature],
       Ci.nsIUrlClassifierFeature.blacklist,
+      "",
       r => {
         resolve(r);
       }

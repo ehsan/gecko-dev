@@ -929,10 +929,11 @@ parent:
 
     async CreateAudioIPCConnection() returns (FileDescOrError fd);
 
-    sync PURLClassifier(Principal principal)
+    sync PURLClassifier(Principal principal, nsCString canonicalHostName)
         returns (bool success);
 
-    async PURLClassifierLocal(URIParams uri, IPCURLClassifierFeature[] features);
+    async PURLClassifierLocal(URIParams uri, nsCString canonicalHostName,
+                              IPCURLClassifierFeature[] features);
 
     async PLoginReputation(URIParams formURI);
 

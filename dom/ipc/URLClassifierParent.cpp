@@ -20,7 +20,8 @@ using namespace mozilla::dom;
 NS_IMPL_ISUPPORTS(URLClassifierParent, nsIURIClassifierCallback)
 
 mozilla::ipc::IPCResult URLClassifierParent::StartClassify(
-    nsIPrincipal* aPrincipal, bool* aSuccess) {
+    nsIPrincipal* aPrincipal, const nsACString& aCanonicalHostName,
+    bool* aSuccess) {
   *aSuccess = false;
   nsresult rv = NS_OK;
   // Note that in safe mode, the URL classifier service isn't available, so we
@@ -28,7 +29,8 @@ mozilla::ipc::IPCResult URLClassifierParent::StartClassify(
   nsCOMPtr<nsIURIClassifier> uriClassifier =
       do_GetService(NS_URICLASSIFIERSERVICE_CONTRACTID, &rv);
   if (NS_SUCCEEDED(rv)) {
-    rv = uriClassifier->Classify(aPrincipal, nullptr, this, aSuccess);
+    rv = uriClassifier->Classify(aPrincipal, nullptr, aCanonicalHostName, this,
+                                 aSuccess);
   }
   if (NS_FAILED(rv) || !*aSuccess) {
     // We treat the case where we fail to classify and the case where the
@@ -134,7 +136,8 @@ NS_IMPL_ISUPPORTS(IPCFeature, nsIUrlClassifierFeature)
 NS_IMPL_ISUPPORTS(URLClassifierLocalParent, nsIUrlClassifierFeatureCallback)
 
 mozilla::ipc::IPCResult URLClassifierLocalParent::StartClassify(
-    nsIURI* aURI, const nsTArray<IPCURLClassifierFeature>& aFeatures) {
+    nsIURI* aURI, const nsACString& aCanonicalHostName,
+    const nsTArray<IPCURLClassifierFeature>& aFeatures) {
   MOZ_ASSERT(aURI);
 
   nsresult rv = NS_OK;
@@ -155,7 +158,8 @@ mozilla::ipc::IPCResult URLClassifierLocalParent::StartClassify(
   // Doesn't matter if we pass blacklist, whitelist or any other list.
   // IPCFeature returns always the same values.
   rv = uriClassifier->AsyncClassifyLocalWithFeatures(
-      aURI, features, nsIUrlClassifierFeature::blacklist, this);
+      aURI, features, nsIUrlClassifierFeature::blacklist, aCanonicalHostName,
+      this);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     OnClassifyComplete(nsTArray<RefPtr<nsIUrlClassifierFeatureResult>>());
     return IPC_OK();

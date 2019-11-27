@@ -151,7 +151,8 @@ class nsUrlClassifierDBService::FeatureHolder final {
     return holder.forget();
   }
 
-  nsresult DoLocalLookup(const nsACString& aSpec,
+  nsresult DoLocalLookup(nsIURI* aInnermostURI, const nsACString& aSpec,
+                         const nsACString& aCanonicalHostName,
                          nsUrlClassifierDBServiceWorker* aWorker) {
     MOZ_ASSERT(!NS_IsMainThread());
     MOZ_ASSERT(aWorker);
@@ -164,7 +165,8 @@ class nsUrlClassifierDBService::FeatureHolder final {
     // only look up at most 5 URLs per aSpec, even if aSpec has more than 5
     // components.
     nsTArray<nsCString> fragments;
-    nsresult rv = LookupCache::GetLookupFragments(aSpec, &fragments);
+    nsresult rv = LookupCache::GetLookupFragments(
+        aInnermostURI, aSpec, aCanonicalHostName, &fragments);
     NS_ENSURE_SUCCESS(rv, rv);
 
     for (TableData* tableData : mTableData) {
@@ -308,7 +310,8 @@ nsresult nsUrlClassifierDBServiceWorker::Init(
 }
 
 nsresult nsUrlClassifierDBServiceWorker::QueueLookup(
-    const nsACString& aKey,
+    nsIURI* aInnermostURI, const nsACString& aKey,
+    const nsACString& aCanonicalHostName,
     nsUrlClassifierDBService::FeatureHolder* aFeatureHolder,
     nsIUrlClassifierLookupCallback* aCallback) {
   MOZ_ASSERT(aFeatureHolder);
@@ -326,6 +329,8 @@ nsresult nsUrlClassifierDBServiceWorker::QueueLookup(
   lookup->mKey = aKey;
   lookup->mCallback = aCallback;
   lookup->mFeatureHolder = aFeatureHolder;
+  lookup->mInnermostURI = aInnermostURI;
+  lookup->mCanonicalHostName = aCanonicalHostName;
 
   return NS_OK;
 }
@@ -368,7 +373,8 @@ nsresult nsUrlClassifierDBServiceWorker::DoSingleLocalLookupWithURIFragments(
  *    "Simplified Regular Expression Lookup" section of the protocol doc.
  */
 nsresult nsUrlClassifierDBServiceWorker::DoLookup(
-    const nsACString& spec,
+    nsIURI* aInnermostURI, const nsACString& spec,
+    const nsACString& aCanonicalHostName,
     nsUrlClassifierDBService::FeatureHolder* aFeatureHolder,
     nsIUrlClassifierLookupCallback* c) {
   // Make sure the callback is invoked when a failure occurs,
@@ -384,7 +390,8 @@ nsresult nsUrlClassifierDBServiceWorker::DoLookup(
     clockStart = PR_IntervalNow();
   }
 
-  nsresult rv = aFeatureHolder->DoLocalLookup(spec, this);
+  nsresult rv = aFeatureHolder->DoLocalLookup(aInnermostURI, spec,
+                                              aCanonicalHostName, this);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -432,7 +439,8 @@ nsresult nsUrlClassifierDBServiceWorker::HandlePendingLookups() {
     mPendingLookups.RemoveElementAt(0);
     {
       MutexAutoUnlock unlock(mPendingLookupLock);
-      DoLookup(lookup.mKey, lookup.mFeatureHolder, lookup.mCallback);
+      DoLookup(lookup.mInnermostURI, lookup.mKey, lookup.mCanonicalHostName,
+               lookup.mFeatureHolder, lookup.mCallback);
     }
     double lookupTime = (TimeStamp::Now() - lookup.mStartTime).ToMilliseconds();
     Telemetry::Accumulate(Telemetry::URLCLASSIFIER_LOOKUP_TIME_2,
@@ -1699,6 +1707,7 @@ nsresult nsUrlClassifierDBService::Init() {
 NS_IMETHODIMP
 nsUrlClassifierDBService::Classify(nsIPrincipal* aPrincipal,
                                    nsIEventTarget* aEventTarget,
+                                   const nsACString& aCanonicalHostName,
                                    nsIURIClassifierCallback* c, bool* aResult) {
   NS_ENSURE_ARG(aPrincipal);
   NS_ENSURE_ARG(aResult);
@@ -1714,8 +1723,10 @@ nsUrlClassifierDBService::Classify(nsIPrincipal* aPrincipal,
     ContentChild* content = ContentChild::GetSingleton();
     MOZ_ASSERT(content);
 
-    auto actor = static_cast<URLClassifierChild*>(
-        content->AllocPURLClassifierChild(IPC::Principal(aPrincipal), aResult));
+    auto actor =
+        static_cast<URLClassifierChild*>(content->AllocPURLClassifierChild(
+            IPC::Principal(aPrincipal), nsCString(aCanonicalHostName),
+            aResult));
     MOZ_ASSERT(actor);
 
     if (aEventTarget) {
@@ -1729,7 +1740,8 @@ nsUrlClassifierDBService::Classify(nsIPrincipal* aPrincipal,
       content->SetEventTargetForActor(actor, systemGroupEventTarget);
     }
     if (!content->SendPURLClassifierConstructor(
-            actor, IPC::Principal(aPrincipal), aResult)) {
+            actor, IPC::Principal(aPrincipal), nsCString(aCanonicalHostName),
+            aResult)) {
       *aResult = false;
       return NS_ERROR_FAILURE;
     }
@@ -1796,7 +1808,7 @@ nsUrlClassifierDBService::Classify(nsIPrincipal* aPrincipal,
   }
 
   // The rest is done async.
-  rv = LookupURI(key, holder, callback);
+  rv = LookupURI(uri, key, aCanonicalHostName, holder, callback);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aResult = true;
@@ -2064,11 +2076,14 @@ nsUrlClassifierDBService::Lookup(nsIPrincipal* aPrincipal,
   rv = utilsService->GetKeyForURI(uri, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return LookupURI(key, holder, aCallback);
+  // Use an empty string for the canonical host name on this path, since none
+  // of our callers require processing canonical host names.
+  return LookupURI(uri, key, EmptyCString(), holder, aCallback);
 }
 
 nsresult nsUrlClassifierDBService::LookupURI(
-    const nsACString& aKey, FeatureHolder* aHolder,
+    nsIURI* aInnermostURI, const nsACString& aKey,
+    const nsACString& aCanonicalHostName, FeatureHolder* aHolder,
     nsIUrlClassifierCallback* aCallback) {
   MOZ_ASSERT(aHolder);
   MOZ_ASSERT(aCallback);
@@ -2086,7 +2101,8 @@ nsresult nsUrlClassifierDBService::LookupURI(
 
   // Queue this lookup and call the lookup function to flush the queue if
   // necessary.
-  nsresult rv = mWorker->QueueLookup(aKey, aHolder, proxyCallback);
+  nsresult rv = mWorker->QueueLookup(aInnermostURI, aKey, aCanonicalHostName,
+                                     aHolder, proxyCallback);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // This seems to just call HandlePendingLookups.
@@ -2404,6 +2420,7 @@ NS_IMETHODIMP
 nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
     nsIURI* aURI, const nsTArray<RefPtr<nsIUrlClassifierFeature>>& aFeatures,
     nsIUrlClassifierFeature::listType aListType,
+    const nsACString& aCanonicalHostName,
     nsIUrlClassifierFeatureCallback* aCallback) {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -2473,7 +2490,8 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
           IPCURLClassifierFeature(name, tables, skipHostList));
     }
 
-    if (!content->SendPURLClassifierLocalConstructor(actor, uri, ipcFeatures)) {
+    if (!content->SendPURLClassifierLocalConstructor(
+            actor, uri, nsCString(aCanonicalHostName), ipcFeatures)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -2492,6 +2510,7 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
   }
 
   auto worker = mWorker;
+  nsCString canonicalHostName(aCanonicalHostName);
 
   // Since aCallback will be passed around threads...
   nsMainThreadPtrHandle<nsIUrlClassifierFeatureCallback> callback(
@@ -2500,8 +2519,9 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
 
   nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction(
       "nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures",
-      [worker, key, holder, callback, startTime]() -> void {
-        holder->DoLocalLookup(key, worker);
+      [worker, uri, key, holder, callback, startTime,
+       canonicalHostName]() -> void {
+        holder->DoLocalLookup(uri, key, canonicalHostName, worker);
 
         nsCOMPtr<nsIRunnable> cbRunnable = NS_NewRunnableFunction(
             "nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures",

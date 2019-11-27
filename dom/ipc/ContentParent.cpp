@@ -5591,7 +5591,8 @@ mozilla::ipc::IPCResult ContentParent::RecvRecordDiscardedData(
 // PURLClassifierParent
 
 PURLClassifierParent* ContentParent::AllocPURLClassifierParent(
-    const Principal& aPrincipal, bool* aSuccess) {
+    const Principal& aPrincipal, const nsCString& aCanonicalHostName,
+    bool* aSuccess) {
   MOZ_ASSERT(NS_IsMainThread());
 
   *aSuccess = true;
@@ -5600,7 +5601,8 @@ PURLClassifierParent* ContentParent::AllocPURLClassifierParent(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvPURLClassifierConstructor(
-    PURLClassifierParent* aActor, const Principal& aPrincipal, bool* aSuccess) {
+    PURLClassifierParent* aActor, const Principal& aPrincipal,
+    const nsCString& aCanonicalHostName, bool* aSuccess) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aActor);
   *aSuccess = false;
@@ -5611,7 +5613,7 @@ mozilla::ipc::IPCResult ContentParent::RecvPURLClassifierConstructor(
     actor->ClassificationFailed();
     return IPC_OK();
   }
-  return actor->StartClassify(principal, aSuccess);
+  return actor->StartClassify(principal, aCanonicalHostName, aSuccess);
 }
 
 bool ContentParent::DeallocPURLClassifierParent(PURLClassifierParent* aActor) {
@@ -5627,7 +5629,8 @@ bool ContentParent::DeallocPURLClassifierParent(PURLClassifierParent* aActor) {
 // PURLClassifierLocalParent
 
 PURLClassifierLocalParent* ContentParent::AllocPURLClassifierLocalParent(
-    const URIParams& aURI, const nsTArray<IPCURLClassifierFeature>& aFeatures) {
+    const URIParams& aURI, const nsCString& aCanonicalHostName,
+    const nsTArray<IPCURLClassifierFeature>& aFeatures) {
   MOZ_ASSERT(NS_IsMainThread());
 
   RefPtr<URLClassifierLocalParent> actor = new URLClassifierLocalParent();
@@ -5636,6 +5639,7 @@ PURLClassifierLocalParent* ContentParent::AllocPURLClassifierLocalParent(
 
 mozilla::ipc::IPCResult ContentParent::RecvPURLClassifierLocalConstructor(
     PURLClassifierLocalParent* aActor, const URIParams& aURI,
+    const nsCString& aCanonicalHostName,
     nsTArray<IPCURLClassifierFeature>&& aFeatures) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aActor);
@@ -5649,7 +5653,7 @@ mozilla::ipc::IPCResult ContentParent::RecvPURLClassifierLocalConstructor(
   }
 
   auto* actor = static_cast<URLClassifierLocalParent*>(aActor);
-  return actor->StartClassify(uri, features);
+  return actor->StartClassify(uri, aCanonicalHostName, features);
 }
 
 bool ContentParent::DeallocPURLClassifierLocalParent(
