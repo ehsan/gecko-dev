@@ -125,6 +125,7 @@ class nsUrlClassifierDBService final : public nsIUrlClassifierDBService,
   bool AsyncClassifyLocalWithFeaturesUsingPreferences(
       nsIURI* aURI, const nsTArray<RefPtr<nsIUrlClassifierFeature>>& aFeatures,
       nsIUrlClassifierFeature::listType aListType,
+      const nsACString& aCanonicalHostName,
       nsIUrlClassifierFeatureCallback* aCallback);
 
   RefPtr<nsUrlClassifierDBServiceWorker> mWorker;

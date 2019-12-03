@@ -2432,8 +2432,8 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
   NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
 
   // Let's try to use the preferences.
-  if (AsyncClassifyLocalWithFeaturesUsingPreferences(uri, aFeatures, aListType,
-                                                     aCallback)) {
+  if (AsyncClassifyLocalWithFeaturesUsingPreferences(
+          uri, aFeatures, aListType, aCanonicalHostName, aCallback)) {
     return NS_OK;
   }
 
@@ -2548,6 +2548,7 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
 bool nsUrlClassifierDBService::AsyncClassifyLocalWithFeaturesUsingPreferences(
     nsIURI* aURI, const nsTArray<RefPtr<nsIUrlClassifierFeature>>& aFeatures,
     nsIUrlClassifierFeature::listType aListType,
+    const nsACString& aCanonicalHostName,
     nsIUrlClassifierFeatureCallback* aCallback) {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -2557,24 +2558,29 @@ bool nsUrlClassifierDBService::AsyncClassifyLocalWithFeaturesUsingPreferences(
     return false;
   }
 
+  std::array<const nsACString*, 2> hosts{{&host, &aCanonicalHostName}};
+
   nsTArray<RefPtr<nsIUrlClassifierFeatureResult>> results;
 
   // Let's see if we have special entries set by prefs.
   for (nsIUrlClassifierFeature* feature : aFeatures) {
-    bool found = false;
+    for (const nsACString* hostName : hosts) {
+      bool found = false;
 
-    nsAutoCString tableName;
-    rv = feature->HasHostInPreferences(host, aListType, tableName, &found);
-    NS_ENSURE_SUCCESS(rv, false);
+      nsAutoCString tableName;
+      rv = feature->HasHostInPreferences(*hostName, aListType, tableName,
+                                         &found);
+      NS_ENSURE_SUCCESS(rv, false);
 
-    if (found) {
-      MOZ_ASSERT(!tableName.IsEmpty());
-      LOG(("URI found in preferences. Table: %s", tableName.get()));
+      if (found) {
+        MOZ_ASSERT(!tableName.IsEmpty());
+        LOG(("URI found in preferences. Table: %s", tableName.get()));
 
-      RefPtr<mozilla::net::UrlClassifierFeatureResult> result =
-          new mozilla::net::UrlClassifierFeatureResult(aURI, feature,
-                                                       tableName);
-      results.AppendElement(result);
+        RefPtr<mozilla::net::UrlClassifierFeatureResult> result =
+            new mozilla::net::UrlClassifierFeatureResult(aURI, feature,
+                                                         tableName);
+        results.AppendElement(result);
+      }
     }
   }
 

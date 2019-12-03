@@ -7,6 +7,7 @@
 #include "HashStore.h"
 #include "nsIFileStreams.h"
 #include "nsISeekableStream.h"
+#include "nsIURIMutator.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/Logging.h"
@@ -426,8 +427,6 @@ nsresult LookupCache::GetLookupWhitelistFragments(
     const nsACString& aCanonicalHostName, nsTArray<nsCString>* aFragments) {
   aFragments->Clear();
 
-  // TODO: main fix
-
   nsACString::const_iterator begin, end, iter, iter_end;
   aSpec.BeginReading(begin);
   aSpec.EndReading(end);
@@ -443,8 +442,53 @@ nsresult LookupCache::GetLookupWhitelistFragments(
                               aFragments);
   }
 
-  const nsACString& topLevelURL = Substring(begin, iter++);
-  const nsACString& thirdPartyURL = Substring(iter_end, end);
+  nsresult rv =
+      GenerateLookupWhitelistFragments(begin, end, iter, iter_end, aFragments);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  if (aCanonicalHostName.IsEmpty()) {
+    // If we don't have a canonical host name, our lookup is finished now.
+    return NS_OK;
+  }
+
+  nsAutoCString alternateSpec;
+  rv = GenerateCanonicalURISpec(aInnermostURI, aCanonicalHostName,
+                                alternateSpec);
+  // NS_ERROR_FILE_NOT_FOUND means that we couldn't generate a new spec.
+  if (rv != NS_ERROR_FILE_NOT_FOUND && NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+  if (rv == NS_ERROR_FILE_NOT_FOUND) {
+    return NS_OK;
+  }
+
+  // Append the fragments from the URI with the canonical host name.
+  alternateSpec.BeginReading(begin);
+  alternateSpec.EndReading(end);
+
+  iter = begin;
+  iter_end = end;
+
+  // We are guaranteed to find "/?resource=" in the URL here again,
+  // because we've done this check once beforei on aSpec, and
+  // alternateSpec would only differ with aSpec in that it will have a
+  // different host name.
+  MOZ_ALWAYS_TRUE(
+      FindInReadable(NS_LITERAL_CSTRING("/?resource="), iter, iter_end));
+
+  return GenerateLookupWhitelistFragments(begin, end, iter, iter_end,
+                                          aFragments);
+}
+
+/* static */
+nsresult LookupCache::GenerateLookupWhitelistFragments(
+    nsACString::const_iterator aBegin, nsACString::const_iterator aEnd,
+    nsACString::const_iterator aIter, nsACString::const_iterator aIterEnd,
+    nsTArray<nsCString>* aFragments) {
+  const nsACString& topLevelURL = Substring(aBegin, aIter++);
+  const nsACString& thirdPartyURL = Substring(aIterEnd, aEnd);
 
   /**
    * For the top-level URL, we follow the host fragment rule defined
@@ -454,18 +498,18 @@ nsresult LookupCache::GetLookupWhitelistFragments(
   topLevelURLs.AppendElement(topLevelURL);
 
   if (!IsCanonicalizedIP(topLevelURL)) {
-    topLevelURL.BeginReading(begin);
-    topLevelURL.EndReading(end);
+    topLevelURL.BeginReading(aBegin);
+    topLevelURL.EndReading(aEnd);
     int numTopLevelURLComponents = 0;
-    while (RFindInReadable(NS_LITERAL_CSTRING("."), begin, end) &&
+    while (RFindInReadable(NS_LITERAL_CSTRING("."), aBegin, aEnd) &&
            numTopLevelURLComponents < MAX_HOST_COMPONENTS) {
       // don't bother checking toplevel domains
       if (++numTopLevelURLComponents >= 2) {
-        topLevelURL.EndReading(iter);
-        topLevelURLs.AppendElement(Substring(end, iter));
+        topLevelURL.EndReading(aIter);
+        topLevelURLs.AppendElement(Substring(aEnd, aIter));
       }
-      end = begin;
-      topLevelURL.BeginReading(begin);
+      aEnd = aBegin;
+      topLevelURL.BeginReading(aBegin);
     }
   }
 
@@ -480,15 +524,15 @@ nsresult LookupCache::GetLookupWhitelistFragments(
   thirdPartyURLs.AppendElement(thirdPartyURL);
 
   if (!IsCanonicalizedIP(thirdPartyURL)) {
-    thirdPartyURL.BeginReading(iter);
-    thirdPartyURL.EndReading(end);
-    if (FindCharInReadable('.', iter, end)) {
-      iter++;
+    thirdPartyURL.BeginReading(aIter);
+    thirdPartyURL.EndReading(aEnd);
+    if (FindCharInReadable('.', aIter, aEnd)) {
+      aIter++;
       nsAutoCString thirdPartyURLToAdd;
-      thirdPartyURLToAdd.Assign(Substring(iter++, end));
+      thirdPartyURLToAdd.Assign(Substring(aIter++, aEnd));
 
       // don't bother checking toplevel domains
-      if (FindCharInReadable('.', iter, end)) {
+      if (FindCharInReadable('.', aIter, aEnd)) {
         thirdPartyURLs.AppendElement(thirdPartyURLToAdd);
       }
     }
@@ -509,27 +553,82 @@ nsresult LookupCache::GetLookupWhitelistFragments(
 }
 
 /* static */
-nsresult LookupCache::GetLookupFragments(nsIURI* aURI, const nsACString& aSpec,
+nsresult LookupCache::GetLookupFragments(nsIURI* aInnermostURI,
+                                         const nsACString& aSpec,
                                          const nsACString& aCanonicalHostName,
                                          nsTArray<nsCString>* aFragments)
 
 {
   aFragments->Clear();
 
-  // TODO: main fix
-
-  nsACString::const_iterator begin, end, iter;
+  nsACString::const_iterator begin, end;
   aSpec.BeginReading(begin);
   aSpec.EndReading(end);
 
-  iter = begin;
-  if (!FindCharInReadable('/', iter, end)) {
+  nsresult rv = GenerateLookupFragments(begin, end, aFragments);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  if (aCanonicalHostName.IsEmpty()) {
+    // If we don't have a canonical host name, our lookup is finished now.
     return NS_OK;
   }
 
-  const nsACString& host = Substring(begin, iter++);
+  nsAutoCString alternateSpec;
+  rv = GenerateCanonicalURISpec(aInnermostURI, aCanonicalHostName,
+                                alternateSpec);
+  // NS_ERROR_FILE_NOT_FOUND means that we couldn't generate a new spec.
+  if (rv != NS_ERROR_FILE_NOT_FOUND && NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+  if (rv == NS_ERROR_FILE_NOT_FOUND) {
+    return NS_OK;
+  }
+
+  // Append the fragments from the URI with the canonical host name.
+  alternateSpec.BeginReading(begin);
+  alternateSpec.EndReading(end);
+  return GenerateLookupFragments(begin, end, aFragments);
+}
+
+/* static */
+nsresult LookupCache::GenerateCanonicalURISpec(
+    nsIURI* aURI, const nsACString& aCanonicalHostName,
+    nsACString& aAlternateSpec) {
+  nsAutoCString host;
+  Unused << aURI->GetAsciiHost(host);
+  if (host.Equals(aCanonicalHostName, nsCaseInsensitiveCStringComparator())) {
+    // The canonical host name is the same as our URI host
+    return NS_ERROR_FILE_NOT_FOUND;
+  }
+
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_MutateURI(aURI).SetHost(aCanonicalHostName).Finalize(uri);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  nsUrlClassifierUtils* utilsService = nsUrlClassifierUtils::GetInstance();
+  if (NS_WARN_IF(!utilsService)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return utilsService->GetKeyForURI(uri, aAlternateSpec);
+}
+
+/* static */
+nsresult LookupCache::GenerateLookupFragments(nsACString::const_iterator aBegin,
+                                              nsACString::const_iterator aEnd,
+                                              nsTArray<nsCString>* aFragments) {
+  nsACString::const_iterator iter = aBegin;
+  if (!FindCharInReadable('/', iter, aEnd)) {
+    return NS_OK;
+  }
+
+  const nsACString& host = Substring(aBegin, iter++);
   nsAutoCString path;
-  path.Assign(Substring(iter, end));
+  path.Assign(Substring(iter, aEnd));
 
   /**
    * From the protocol doc:
@@ -544,18 +643,18 @@ nsresult LookupCache::GetLookupFragments(nsIURI* aURI, const nsACString& aSpec,
   hosts.AppendElement(host);
 
   if (!IsCanonicalizedIP(host)) {
-    host.BeginReading(begin);
-    host.EndReading(end);
+    host.BeginReading(aBegin);
+    host.EndReading(aEnd);
     int numHostComponents = 0;
-    while (RFindInReadable(NS_LITERAL_CSTRING("."), begin, end) &&
+    while (RFindInReadable(NS_LITERAL_CSTRING("."), aBegin, aEnd) &&
            numHostComponents < MAX_HOST_COMPONENTS) {
       // don't bother checking toplevel domains
       if (++numHostComponents >= 2) {
         host.EndReading(iter);
-        hosts.AppendElement(Substring(end, iter));
+        hosts.AppendElement(Substring(aEnd, iter));
       }
-      end = begin;
-      host.BeginReading(begin);
+      aEnd = aBegin;
+      host.BeginReading(aBegin);
     }
   }
 
@@ -574,21 +673,21 @@ nsresult LookupCache::GetLookupFragments(nsIURI* aURI, const nsACString& aSpec,
   nsTArray<nsCString> paths;
   nsAutoCString pathToAdd;
 
-  path.BeginReading(begin);
-  path.EndReading(end);
-  iter = begin;
-  if (FindCharInReadable('?', iter, end)) {
-    pathToAdd = Substring(begin, iter);
+  path.BeginReading(aBegin);
+  path.EndReading(aEnd);
+  iter = aBegin;
+  if (FindCharInReadable('?', iter, aEnd)) {
+    pathToAdd = Substring(aBegin, iter);
     paths.AppendElement(pathToAdd);
-    end = iter;
+    aEnd = iter;
   }
 
   int numPathComponents = 1;
-  iter = begin;
-  while (FindCharInReadable('/', iter, end) &&
+  iter = aBegin;
+  while (FindCharInReadable('/', iter, aEnd) &&
          numPathComponents < MAX_PATH_COMPONENTS) {
     iter++;
-    pathToAdd.Assign(Substring(begin, iter));
+    pathToAdd.Assign(Substring(aBegin, iter));
     paths.AppendElement(pathToAdd);
     numPathComponents++;
   }

@@ -283,6 +283,21 @@ class LookupCache {
   nsresult CheckCache(const Completion& aCompletion, bool* aHas,
                       bool* aConfirmed);
 
+  // Creates URI fragments based on an input URI.
+  static nsresult GenerateLookupFragments(nsACString::const_iterator aBegin,
+                                          nsACString::const_iterator aEnd,
+                                          nsTArray<nsCString>* aFragments);
+  // Creates URI whitelist fragments based on an input URI.
+  static nsresult GenerateLookupWhitelistFragments(
+      nsACString::const_iterator aBegin, nsACString::const_iterator aEnd,
+      nsACString::const_iterator aIter, nsACString::const_iterator aIterEnd,
+      nsTArray<nsCString>* aFragments);
+
+  // Creates an URI with the canoniocal host name as its URI spec.
+  static nsresult GenerateCanonicalURISpec(nsIURI* aURI,
+                                           const nsACString& aCanonicalHostName,
+                                           nsACString& aAlternateSpec);
+
   bool mPrimed;  // true when the PrefixSet has been loaded (or constructed)
   const nsCString mTableName;
   const nsCString mProvider;
