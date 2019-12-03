@@ -6631,8 +6631,9 @@ nsresult nsHttpChannel::AsyncOpenFinal(TimeStamp aTimeStamp) {
   // lookup is not needed so CheckIsTrackerWithLocalTable() will return an
   // error and then we can MaybeResolveProxyAndBeginConnect() right away.
   RefPtr<nsHttpChannel> self = this;
-  bool willCallback = NS_SUCCEEDED(
-      AsyncUrlChannelClassifier::CheckChannel(this, [self]() -> void {
+  AsyncUrlChannelClassifier::CheckChannel(
+      this,
+      [self]() -> void {
         nsresult rv = self->MaybeResolveProxyAndBeginConnect();
         if (NS_FAILED(rv)) {
           // Since this error is thrown asynchronously so that the caller
@@ -6641,15 +6642,15 @@ nsresult nsHttpChannel::AsyncOpenFinal(TimeStamp aTimeStamp) {
           self->CloseCacheEntry(false);
           Unused << self->AsyncAbort(rv);
         }
-      }));
-
-  if (!willCallback) {
-    // We can do MaybeResolveProxyAndBeginConnect immediately if
-    // CheckIsTrackerWithLocalTable is failed. Note that we don't need to
-    // handle the failure because BeginConnect() will return synchronously and
-    // the caller will be responsible for handling it.
-    return MaybeResolveProxyAndBeginConnect();
-  }
+      },
+      [self]() -> void {
+        // We can do MaybeResolveProxyAndBeginConnect immediately if
+        // CheckIsTrackerWithLocalTable is failed. Note that we don't
+        // need to handle the failure because BeginConnect() will return
+        // synchronously and the caller will be responsible for handling
+        // it.
+        Unused << self->MaybeResolveProxyAndBeginConnect();
+      });
 
   return NS_OK;
 }

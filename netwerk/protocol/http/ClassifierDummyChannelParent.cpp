@@ -25,10 +25,9 @@ void ClassifierDummyChannelParent::Init(
   MOZ_ASSERT(mIPCActive);
 
   RefPtr<ClassifierDummyChannelParent> self = this;
-  auto onExit =
-      MakeScopeExit([self] { Unused << Send__delete__(self, false); });
 
   if (!aURI) {
+    Unused << Send__delete__(this, false);
     return;
   }
 
@@ -36,16 +35,16 @@ void ClassifierDummyChannelParent::Init(
       aURI, aTopWindowURI, aContentBlockingAllowListPrincipal,
       aTopWindowURIResult, aLoadInfo);
 
-  bool willCallback = NS_SUCCEEDED(AsyncUrlChannelClassifier::CheckChannel(
-      channel, [self = std::move(self), channel]() {
+  AsyncUrlChannelClassifier::CheckChannel(
+      channel,
+      [self = std::move(self), channel]() {
         if (self->mIPCActive) {
           Unused << Send__delete__(self, channel->GetClassificationFlags());
         }
-      }));
-
-  if (willCallback) {
-    onExit.release();
-  }
+      },
+      [] {
+        // Do nothing
+      });
 }
 
 void ClassifierDummyChannelParent::ActorDestroy(ActorDestroyReason aWhy) {

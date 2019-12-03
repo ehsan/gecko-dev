@@ -17,8 +17,15 @@ namespace net {
 
 class AsyncUrlChannelClassifier final {
  public:
-  static nsresult CheckChannel(nsIChannel* aChannel,
-                               std::function<void()>&& aCallback);
+  static void CheckChannel(nsIChannel* aChannel,
+                           std::function<void()>&& aSuccessCallback,
+                           std::function<void()>&& aErrorCallback);
+
+ private:
+  static void CheckChannelInternal(nsIChannel* aChannel,
+                                   const nsACString& aCanonicalHostName,
+                                   std::function<void()>&& aSuccessCallback,
+                                   std::function<void()>&& aErrorCallback);
 };
 
 }  // namespace net

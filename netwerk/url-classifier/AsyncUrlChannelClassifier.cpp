@@ -281,6 +281,7 @@ class FeatureData {
   ~FeatureData();
 
   nsresult Initialize(FeatureTask* aTask, nsIChannel* aChannel,
+                      const nsACString& aCanonicalHostName,
                       nsIUrlClassifierFeature* aFeature);
 
   void DoLookup(nsUrlClassifierDBServiceWorker* aWorkerClassifier);
@@ -290,6 +291,7 @@ class FeatureData {
 
  private:
   nsresult InitializeList(FeatureTask* aTask, nsIChannel* aChannel,
+                          const nsACString& aCanonicalHostName,
                           nsIUrlClassifierFeature::listType aListType,
                           nsTArray<RefPtr<TableData>>& aList);
 
@@ -310,6 +312,7 @@ FeatureData::~FeatureData() {
 }
 
 nsresult FeatureData::Initialize(FeatureTask* aTask, nsIChannel* aChannel,
+                                 const nsACString& aCanonicalHostName,
                                  nsIUrlClassifierFeature* aFeature) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aTask);
@@ -323,14 +326,15 @@ nsresult FeatureData::Initialize(FeatureTask* aTask, nsIChannel* aChannel,
 
   mFeature = aFeature;
 
-  nsresult rv = InitializeList(
-      aTask, aChannel, nsIUrlClassifierFeature::blacklist, mBlacklistTables);
+  nsresult rv =
+      InitializeList(aTask, aChannel, aCanonicalHostName,
+                     nsIUrlClassifierFeature::blacklist, mBlacklistTables);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
 
-  rv = InitializeList(aTask, aChannel, nsIUrlClassifierFeature::whitelist,
-                      mWhitelistTables);
+  rv = InitializeList(aTask, aChannel, aCanonicalHostName,
+                      nsIUrlClassifierFeature::whitelist, mWhitelistTables);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -516,6 +520,7 @@ class FeatureTask {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(FeatureTask);
 
   static nsresult Create(nsIChannel* aChannel,
+                         const nsACString& aCanonicalHostName,
                          std::function<void()>&& aCallback,
                          FeatureTask** aTask);
 
@@ -551,6 +556,7 @@ class FeatureTask {
 // this, this function aggregates feature per URI and tables.
 /* static */
 nsresult FeatureTask::Create(nsIChannel* aChannel,
+                             const nsACString& aCanonicalHostName,
                              std::function<void()>&& aCallback,
                              FeatureTask** aTask) {
   MOZ_ASSERT(NS_IsMainThread());
@@ -573,7 +579,8 @@ nsresult FeatureTask::Create(nsIChannel* aChannel,
 
   for (nsIUrlClassifierFeature* feature : features) {
     FeatureData* featureData = task->mFeatures.AppendElement();
-    nsresult rv = featureData->Initialize(task, aChannel, feature);
+    nsresult rv =
+        featureData->Initialize(task, aChannel, aCanonicalHostName, feature);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
@@ -703,6 +710,7 @@ void FeatureTask::CompleteClassification() {
 
 nsresult FeatureData::InitializeList(
     FeatureTask* aTask, nsIChannel* aChannel,
+    const nsACString& aCanonicalHostName,
     nsIUrlClassifierFeature::listType aListType,
     nsTArray<RefPtr<TableData>>& aList) {
   MOZ_ASSERT(NS_IsMainThread());
@@ -743,12 +751,6 @@ nsresult FeatureData::InitializeList(
     return rv;
   }
 
-  nsAutoCString canonicalHostName;
-  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(aChannel);
-  if (cwcn) {
-    canonicalHostName = cwcn->GetCanonicalHostName();
-  }
-
   bool found = false;
   nsAutoCString tableName;
   rv = mFeature->HasHostInPreferences(host, aListType, tableName, &found);
@@ -761,7 +763,7 @@ nsresult FeatureData::InitializeList(
   }
 
   RefPtr<URIData> uriData;
-  rv = aTask->GetOrCreateURIData(uri, innermostURI, URIType, canonicalHostName,
+  rv = aTask->GetOrCreateURIData(uri, innermostURI, URIType, aCanonicalHostName,
                                  getter_AddRefs(uriData));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
@@ -792,37 +794,73 @@ nsresult FeatureData::InitializeList(
 }  // namespace
 
 /* static */
-nsresult AsyncUrlChannelClassifier::CheckChannel(
-    nsIChannel* aChannel, std::function<void()>&& aCallback) {
+void AsyncUrlChannelClassifier::CheckChannel(
+    nsIChannel* aChannel, std::function<void()>&& aSuccessCallback,
+    std::function<void()>&& aErrorCallback) {
   MOZ_ASSERT(XRE_IsParentProcess());
   MOZ_ASSERT(aChannel);
-
-  if (!aCallback) {
-    return NS_ERROR_INVALID_ARG;
-  }
+  MOZ_ASSERT(aSuccessCallback);
+  MOZ_ASSERT(aErrorCallback);
 
   UC_LOG(
       ("AsyncUrlChannelClassifier::CheckChannel starting the classification "
        "for channel %p",
        aChannel));
 
+  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(aChannel);
+  // Delay the execution of `task` below to after when the canonical name
+  // has been obtained. This ends up calling the following chain which doesn't
+  // work correctly. We start when we QI to nsIChannelWithCanonicalName and try
+  // to get the canonical name:
+  // * FeatureTask::Create()
+  // * FeatureTask::Initialize()
+  // * FeatureTask::InitializeList()
+  nsCOMPtr<nsIChannel> channel(aChannel);
+
+  if (cwcn) {
+    cwcn->WhenCanonicalHostNameAvailable()->Then(
+        GetCurrentThreadSerialEventTarget(), __func__,
+        [=, success = std::move(aSuccessCallback),
+         error = std::move(aErrorCallback)](
+            const CanonicalNamePromise::ResolveOrRejectValue& aValue) {
+          // We care about serializing the task, not about whether the
+          // promise was resolved or rejected, so no need to look at
+          // aValue here.
+
+          // callback is const here but we want to move it, so we need to
+          // cast away its constness.
+          auto& s = const_cast<std::function<void()>&>(success);
+          auto& e = const_cast<std::function<void()>&>(error);
+          CheckChannelInternal(
+              channel,
+              aValue.IsResolve() ? aValue.ResolveValue() : VoidCString(),
+              std::move(s), std::move(e));
+        });
+  } else {
+    CheckChannelInternal(channel, VoidCString(), std::move(aSuccessCallback),
+                         std::move(aErrorCallback));
+  }
+}
+
+/* static */
+void AsyncUrlChannelClassifier::CheckChannelInternal(
+    nsIChannel* aChannel, const nsACString& aCanonicalHostName,
+    std::function<void()>&& aSuccessCallback,
+    std::function<void()>&& aErrorCallback) {
   RefPtr<FeatureTask> task;
   nsresult rv =
-      FeatureTask::Create(aChannel, std::move(aCallback), getter_AddRefs(task));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  if (!task) {
-    // No task is needed for this channel, return an error so the caller won't
-    // wait for a callback.
-    return NS_ERROR_FAILURE;
+      FeatureTask::Create(aChannel, aCanonicalHostName,
+                          std::move(aSuccessCallback), getter_AddRefs(task));
+  if (NS_WARN_IF(NS_FAILED(rv)) || !task) {
+    aErrorCallback();
+    return;
   }
 
   RefPtr<nsUrlClassifierDBServiceWorker> workerClassifier =
       nsUrlClassifierDBService::GetWorker();
   if (NS_WARN_IF(!workerClassifier)) {
-    return NS_ERROR_FAILURE;
+    aErrorCallback();
+    return;
   }
 
   nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction(
@@ -838,8 +876,11 @@ nsresult AsyncUrlChannelClassifier::CheckChannel(
         NS_DispatchToMainThread(r);
       });
 
-  return nsUrlClassifierDBService::BackgroundThread()->Dispatch(
+  rv = nsUrlClassifierDBService::BackgroundThread()->Dispatch(
       r, NS_DISPATCH_NORMAL);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    aErrorCallback();
+  }
 }
 
 }  // namespace net
