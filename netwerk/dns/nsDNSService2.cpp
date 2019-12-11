@@ -39,6 +39,7 @@
 #include "mozilla/net/DNSListenerProxy.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
+#include "mozilla/StaticPrefs_privacy.h"
 #include "mozilla/TextUtils.h"
 #include "mozilla/Utf8.h"
 
@@ -832,6 +833,14 @@ nsresult nsDNSService::AsyncResolveInternal(
     res = mResolver;
     idn = mIDN;
     localDomain = mLocalDomains.GetEntry(aHostname);
+  }
+
+  if (mozilla::StaticPrefs::
+          privacy_thirdparty_consider_top_canonical_hostname() &&
+      (flags & RESOLVE_SPECULATE)) {
+    // When considering canonical domain names for privacy checks, always
+    // resolve them upon speculation.
+    flags |= RESOLVE_CANONICAL_NAME;
   }
 
   if (mNotifyResolution) {
