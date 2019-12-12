@@ -5,6 +5,14 @@
 
 #include "nsISupports.idl"
 
+%{C++
+#include "mozilla/MozPromise.h"
+
+using CanonicalNamePromise = mozilla::MozPromise<nsCString, bool, false>;
+%}
+
+native CanonicalNamePromiseAddRefed(RefPtr<CanonicalNamePromise>);
+
 /**
  * A channel that supports a canonical host name.
  */
@@ -15,4 +23,11 @@ interface nsIChannelWithCanonicalName : nsISupports
      * The canonical name of the host name from which the channel is being loaded.
      */
     [notxpcom] attribute ACString canonicalHostName;
+
+    /**
+     * Returns a promise which will be resolved when the canonical host name
+     * has been resolved and is ready to be used.
+     */
+    [notxpcom]
+    CanonicalNamePromiseAddRefed whenCanonicalHostNameAvailable();
 };

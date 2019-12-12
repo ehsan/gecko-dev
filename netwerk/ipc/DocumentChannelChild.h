@@ -55,6 +55,8 @@ class DocumentChannelChild final : public DocumentChannel,
       LoadInfoArgs&& aLoadInfo, nsIURI* aNewUri,
       ConfirmRedirectResolver&& aResolve);
 
+  mozilla::ipc::IPCResult RecvAwaitCanonicalHostName();
+
   mozilla::ipc::IPCResult RecvSetCanonicalHostName(const nsCString& aHostName);
 
  private:
@@ -67,6 +69,14 @@ class DocumentChannelChild final : public DocumentChannel,
   RedirectToRealChannelResolver mRedirectResolver;
 
   nsCString mCanonicalName;
+
+  // Promise that blocks connection creation when we want to resolve the origin
+  // host name to be able to give the configured proxy only the resolved IP
+  // to not leak names.
+  MozPromiseHolder<CanonicalNamePromise> mDNSBlockingPromise;
+  // When we hit DoConnect before the resolution is done, Then() will be set
+  // here to resume DoConnect.
+  RefPtr<CanonicalNamePromise> mDNSBlockingThenable;
 };
 
 }  // namespace net

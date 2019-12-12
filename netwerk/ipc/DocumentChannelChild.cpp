@@ -445,11 +445,46 @@ DocumentChannelChild::SetCanonicalHostName(const nsACString& aHostName) {
   mCanonicalName = aHostName;
 }
 
+NS_IMETHODIMP_(RefPtr<CanonicalNamePromise>)
+DocumentChannelChild::WhenCanonicalHostNameAvailable() {
+  if (mDNSBlockingPromise.IsEmpty()) {
+    return CanonicalNamePromise::CreateAndReject(false, __func__);
+  }
+  return mDNSBlockingThenable->Then(
+      GetCurrentThreadSerialEventTarget(), __func__,
+      [](const CanonicalNamePromise::ResolveOrRejectValue& aValue) {
+        if (aValue.IsResolve()) {
+          return CanonicalNamePromise::CreateAndResolve(aValue.ResolveValue(),
+                                                        __func__);
+        }
+        return CanonicalNamePromise::CreateAndReject(false, __func__);
+      });
+}
+
+mozilla::ipc::IPCResult DocumentChannelChild::RecvAwaitCanonicalHostName() {
+  // Resolved in RecvSetCanonicalHostName.
+  mDNSBlockingThenable = mDNSBlockingPromise.Ensure(__func__);
+
+  Unused << AddRef();
+
+  return IPC_OK();
+}
+
 mozilla::ipc::IPCResult DocumentChannelChild::RecvSetCanonicalHostName(
     const nsCString& aHostName) {
   MOZ_ASSERT(NS_IsMainThread());
 
   SetCanonicalHostName(aHostName);
+
+  if (!mDNSBlockingPromise.IsEmpty()) {
+    if (mCanonicalName.IsEmpty()) {
+      mDNSBlockingPromise.Reject(false, __func__);
+    } else {
+      mDNSBlockingPromise.Resolve(mCanonicalName, __func__);
+    }
+  }
+
+  Unused << Release();
 
   return IPC_OK();
 }

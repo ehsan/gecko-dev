@@ -77,6 +77,7 @@ class DocumentChannelParent final : public ADocumentChannelBridge,
   RefPtr<PDocumentChannelParent::RedirectToRealChannelPromise>
   RedirectToRealChannel(uint32_t aRedirectFlags, uint32_t aLoadFlags) override;
 
+  void AwaitCanonicalHostName() override;
   void PropagateCanonicalHostName(const nsACString& aHostName) override;
 
   ~DocumentChannelParent();

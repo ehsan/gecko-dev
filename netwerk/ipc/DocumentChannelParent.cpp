@@ -76,6 +76,12 @@ DocumentChannelParent::RedirectToRealChannel(uint32_t aRedirectFlags,
   return SendRedirectToRealChannel(args);
 }
 
+void DocumentChannelParent::AwaitCanonicalHostName() {
+  if (CanSend()) {
+    Unused << SendAwaitCanonicalHostName();
+  }
+}
+
 void DocumentChannelParent::PropagateCanonicalHostName(
     const nsACString& aHostName) {
   if (CanSend()) {

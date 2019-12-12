@@ -4544,6 +4544,11 @@ HttpBaseChannel::SetCanonicalHostName(const nsACString& aHostName) {
   mCanonicalName = aHostName;
 }
 
+NS_IMETHODIMP_(RefPtr<CanonicalNamePromise>)
+HttpBaseChannel::WhenCanonicalHostNameAvailable() {
+  return CanonicalNamePromise::CreateAndReject(false, __func__);
+}
+
 const nsACString& HttpBaseChannel::GetTopWindowCanonicalHostName() {
   if (mTopWindowCanonicalName.IsVoid() &&
       StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname()) {

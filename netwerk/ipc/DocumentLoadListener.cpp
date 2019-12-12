@@ -1335,6 +1335,12 @@ DocumentLoadListener::GetCachedCrossOriginOpenerPolicy(
   return httpChannel->GetCrossOriginOpenerPolicy(aPolicy);
 }
 
+void DocumentLoadListener::AwaitCanonicalHostName() {
+  if (mDocumentChannelBridge) {
+    mDocumentChannelBridge->AwaitCanonicalHostName();
+  }
+}
+
 void DocumentLoadListener::PropagateCanonicalHostName(
     const nsACString& aHostName) {
   if (mDocumentChannelBridge) {

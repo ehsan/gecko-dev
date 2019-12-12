@@ -7002,6 +7002,13 @@ nsresult nsHttpChannel::MaybeStartDNSPrefetch() {
       // Resolved in OnLookupComplete.
       mDNSBlockingThenable = mDNSBlockingPromise.Ensure(__func__);
 
+      nsCOMPtr<nsIParentChannel> parentChannel;
+      NS_QueryNotificationCallbacks(this, parentChannel);
+      if (RefPtr<DocumentLoadListener> docParent =
+              do_QueryObject(parentChannel)) {
+        docParent->AwaitCanonicalHostName();
+      }
+
       nsCOMPtr<nsISerialEventTarget> target(do_GetMainThread());
       RefPtr<nsHttpChannel> self(this);
       mDNSBlockingThenable->Then(
@@ -10660,6 +10667,24 @@ void nsHttpChannel::PerformBackgroundCacheRevalidationNow() {
 
   LOG(("  %p is re-validating with a new channel %p", this,
        validatingChannel.get()));
+}
+
+NS_IMETHODIMP_(RefPtr<CanonicalNamePromise>)
+nsHttpChannel::WhenCanonicalHostNameAvailable() {
+  if (mDNSBlockingPromise.IsEmpty()) {
+    return HttpBaseChannel::WhenCanonicalHostNameAvailable();
+  }
+  return mDNSBlockingThenable->Then(
+      GetCurrentThreadSerialEventTarget(), __func__,
+      [](const DNSPromise::ResolveOrRejectValue& aValue) {
+        if (aValue.IsResolve()) {
+          nsCString canonicalName;
+          Unused << aValue.ResolveValue()->GetCanonicalName(canonicalName);
+          return CanonicalNamePromise::CreateAndResolve(canonicalName,
+                                                        __func__);
+        }
+        return CanonicalNamePromise::CreateAndReject(false, __func__);
+      });
 }
 
 }  // namespace net

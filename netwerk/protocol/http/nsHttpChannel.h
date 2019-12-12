@@ -152,6 +152,9 @@ class nsHttpChannel final : public HttpBaseChannel,
   // nsIChannel
   NS_IMETHOD GetSecurityInfo(nsISupports** aSecurityInfo) override;
   NS_IMETHOD AsyncOpen(nsIStreamListener* aListener) override;
+  // nsIChannelWithCanonicalName
+  NS_IMETHOD_(RefPtr<CanonicalNamePromise>)
+  WhenCanonicalHostNameAvailable() override;
   // nsIHttpChannel
   NS_IMETHOD GetEncodedBodySize(uint64_t* aEncodedBodySize) override;
   // nsIHttpChannelInternal

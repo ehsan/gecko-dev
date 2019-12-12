@@ -158,6 +158,7 @@ class DocumentLoadListener : public nsIInterfaceRequestor,
                              bool aIsCrossProcess, uint32_t aRedirectFlags,
                              uint32_t aLoadFlags);
 
+  void AwaitCanonicalHostName();
   void PropagateCanonicalHostName(const nsACString& aHostName);
 
  protected:
