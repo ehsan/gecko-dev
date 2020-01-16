@@ -200,16 +200,47 @@ nsresult nsChannelClassifier::StartInternal() {
                                                getter_AddRefs(principal));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString canonicalHostName;
   nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(mChannel);
   if (cwcn) {
-    canonicalHostName = cwcn->GetCanonicalHostName();
-  }
+    RefPtr<nsChannelClassifier> self = this;
+    cwcn->WhenCanonicalHostNameAvailable()->Then(
+        GetCurrentThreadSerialEventTarget(), __func__,
+        [=](const CanonicalNamePromise::ResolveOrRejectValue& aValue) {
+          bool expectCallback = self->StartInternalWorker(
+              uriClassifier, principal,
+              aValue.IsResolve() ? aValue.ResolveValue() : VoidCString());
+          if (!expectCallback) {
+            self->ResumeChannelWhenCallbackIsntAnticipated(false);
+          }
+        });
 
-  bool expectCallback;
+    SuspendChannelAnticipatingStart();
+
+    // Add an observer for shutdown
+    AddShutdownObserver();
+  } else {
+    bool expectCallback =
+        StartInternalWorker(uriClassifier, principal, VoidCString());
+    if (expectCallback) {
+      SuspendChannelAnticipatingStart();
+
+      // Add an observer for shutdown
+      AddShutdownObserver();
+    } else {
+      UC_LOG(("nsChannelClassifier[%p]: not expecting callback", this));
+      return NS_ERROR_FAILURE;
+    }
+  }
+  return NS_OK;
+}
+
+bool nsChannelClassifier::StartInternalWorker(
+    nsIURIClassifier* aURIClassifier, nsIPrincipal* aPrincipal,
+    const nsACString& aCanonicalHostName) {
+  bool expectCallback = false;
   if (UC_LOG_ENABLED()) {
     nsCOMPtr<nsIURI> principalURI;
-    principal->GetURI(getter_AddRefs(principalURI));
+    aPrincipal->GetURI(getter_AddRefs(principalURI));
     nsCString spec = principalURI->GetSpecOrDefault();
     spec.Truncate(std::min(spec.Length(), UrlClassifierCommon::sMaxSpecLength));
     UC_LOG(("nsChannelClassifier[%p]: Classifying principal %s on channel[%p]",
@@ -217,35 +248,43 @@ nsresult nsChannelClassifier::StartInternal() {
   }
   // The classify is running in parent process, no need to give a valid event
   // target
-  rv = uriClassifier->Classify(principal, nullptr, canonicalHostName, this,
-                               &expectCallback);
+  nsresult rv = aURIClassifier->Classify(
+      aPrincipal, nullptr, aCanonicalHostName, this, &expectCallback);
   if (NS_FAILED(rv)) {
-    return rv;
+    return false;
+  }
+  return expectCallback;
+}
+
+void nsChannelClassifier::SuspendChannelAnticipatingStart() {
+  // Suspend the channel, it will be resumed when we get the classifier
+  // callback.
+  nsresult rv = mChannel->Suspend();
+  if (NS_FAILED(rv)) {
+    // Some channels (including nsJSChannel) fail on Suspend.  This
+    // shouldn't be fatal, but will prevent malware from being
+    // blocked on these channels.
+    UC_LOG_WARN(("nsChannelClassifier[%p]: Couldn't suspend channel", this));
+    return;
   }
 
-  if (expectCallback) {
-    // Suspend the channel, it will be resumed when we get the classifier
-    // callback.
-    rv = mChannel->Suspend();
-    if (NS_FAILED(rv)) {
-      // Some channels (including nsJSChannel) fail on Suspend.  This
-      // shouldn't be fatal, but will prevent malware from being
-      // blocked on these channels.
-      UC_LOG_WARN(("nsChannelClassifier[%p]: Couldn't suspend channel", this));
-      return rv;
+  mSuspendedChannel = true;
+  UC_LOG_DEBUG(
+      ("nsChannelClassifier[%p]: suspended channel %p", this, mChannel.get()));
+}
+
+void nsChannelClassifier::ResumeChannelWhenCallbackIsntAnticipated(
+    bool aCancel) {
+  // If we aren't getting a callback for any reason, make sure we resume the
+  // channel.
+  if (mChannel && mSuspendedChannel) {
+    mSuspendedChannel = false;
+    if (aCancel) {
+      mChannel->Cancel(NS_ERROR_ABORT);
     }
-
-    mSuspendedChannel = true;
-    UC_LOG_DEBUG(("nsChannelClassifier[%p]: suspended channel %p", this,
-                  mChannel.get()));
-  } else {
-    UC_LOG(("nsChannelClassifier[%p]: not expecting callback", this));
-    return NS_ERROR_FAILURE;
+    mChannel->Resume();
+    mChannel = nullptr;
   }
-
-  // Add an observer for shutdown
-  AddShutdownObserver();
-  return NS_OK;
 }
 
 bool nsChannelClassifier::IsHostnameWhitelisted(
@@ -459,15 +498,7 @@ NS_IMETHODIMP
 nsChannelClassifier::Observe(nsISupports* aSubject, const char* aTopic,
                              const char16_t* aData) {
   if (!strcmp(aTopic, "profile-change-net-teardown")) {
-    // If we aren't getting a callback for any reason, make sure
-    // we resume the channel.
-
-    if (mChannel && mSuspendedChannel) {
-      mSuspendedChannel = false;
-      mChannel->Cancel(NS_ERROR_ABORT);
-      mChannel->Resume();
-      mChannel = nullptr;
-    }
+    ResumeChannelWhenCallbackIsntAnticipated(true);
 
     RemoveShutdownObserver();
   }

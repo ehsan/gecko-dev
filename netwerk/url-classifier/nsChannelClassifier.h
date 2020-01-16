@@ -45,6 +45,16 @@ class nsChannelClassifier final : public nsIURIClassifierCallback,
   // Start is called. Returns NS_OK if and only if we will get a callback
   // from the classifier service.
   nsresult StartInternal();
+  // Helper function for actually starting the classification work.
+  MOZ_MUST_USE bool StartInternalWorker(nsIURIClassifier* aURIClassifier,
+                                        nsIPrincipal* aPrincipal,
+                                        const nsACString& aCanonicalHostName);
+  // Helper function for suspending the channel when starting an asynchronous
+  // classification job.
+  void SuspendChannelAnticipatingStart();
+  // Helper function for resuming the channel when a callback isn't anticipated
+  // any more.
+  void ResumeChannelWhenCallbackIsntAnticipated(bool aCancel);
   // Helper function to check a URI against the hostname whitelist
   bool IsHostnameWhitelisted(nsIURI* aUri, const nsACString& aWhitelisted);
 
