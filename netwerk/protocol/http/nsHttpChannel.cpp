@@ -6661,9 +6661,7 @@ nsresult nsHttpChannel::MaybeResolveProxyAndBeginConnect() {
   // at this point. The only time we know mProxyInfo already is if we're
   // proxying a non-http protocol like ftp. We don't need to discover proxy
   // settings if we are never going to make a network connection.
-  if (!mProxyInfo &&
-      !(mLoadFlags & (LOAD_ONLY_FROM_CACHE | LOAD_NO_NETWORK_IO)) &&
-      NS_SUCCEEDED(ResolveProxy())) {
+  if (!mProxyInfo && NeedsNetworkAccess() && NS_SUCCEEDED(ResolveProxy())) {
     return NS_OK;
   }
 
@@ -6963,8 +6961,7 @@ nsresult nsHttpChannel::MaybeStartDNSPrefetch() {
   // Start a DNS lookup very early in case the real open is queued the DNS can
   // happen in parallel. Do not do so in the presence of an HTTP proxy as
   // all lookups other than for the proxy itself are done by the proxy.
-  // Also we don't do a lookup if the LOAD_NO_NETWORK_IO or
-  // LOAD_ONLY_FROM_CACHE flags are set.
+  // Also we don't do a lookup if we don't need network access.
   //
   // We keep the DNS prefetch object around so that we can retrieve
   // timing information from it. There is no guarantee that we actually
@@ -6973,7 +6970,7 @@ nsresult nsHttpChannel::MaybeStartDNSPrefetch() {
   // be correct, and even when it isn't, the timing still represents _a_
   // valid DNS lookup timing for the site, even if it is not _the_
   // timing we used.
-  if (mLoadFlags & (LOAD_NO_NETWORK_IO | LOAD_ONLY_FROM_CACHE)) {
+  if (!NeedsNetworkAccess()) {
     return NS_OK;
   }
 
@@ -10283,7 +10280,7 @@ nsresult nsHttpChannel::MaybeRaceCacheWithNetwork() {
   }
 
   // Don't trigger the network if the load flags say so.
-  if (mLoadFlags & (LOAD_ONLY_FROM_CACHE | LOAD_NO_NETWORK_IO)) {
+  if (!NeedsNetworkAccess()) {
     return NS_OK;
   }
 

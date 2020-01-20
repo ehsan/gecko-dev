@@ -329,6 +329,11 @@ class nsHttpChannel final : public HttpBaseChannel,
   // Returns a combination of the above flags.
   uint16_t GetProxyDNSStrategy();
 
+  // Returns true if opening the channel may involve access to the network.
+  bool NeedsNetworkAccess() const {
+    return !(mLoadFlags & (LOAD_ONLY_FROM_CACHE | LOAD_NO_NETWORK_IO));
+  }
+
   // We might synchronously or asynchronously call BeginConnect,
   // which includes DNS prefetch and speculative connection, according to
   // whether an async tracker lookup is required. If the tracker lookup
