@@ -313,6 +313,7 @@ class nsHttpChannel final : public HttpBaseChannel,
   // (including DNS prefetch and speculative connection.)
   nsresult MaybeResolveProxyAndBeginConnect();
   nsresult MaybeStartDNSPrefetch();
+  nsresult HandleDNSPrefetch();
 
   void PropagateCanonicalHostNameToParentChannel();
 
@@ -759,6 +760,16 @@ class nsHttpChannel final : public HttpBaseChannel,
   // opener policy ( see ComputeCrossOriginOpenerPolicyMismatch )
   uint32_t mHasCrossOriginOpenerPolicyMismatch : 1;
 
+  // True if we have a proxy resolution task has started.
+  uint32_t mProxyResolutionStarted : 1;
+
+  // True if we're past the call to MaybeResolveProxyAndBeginConnect() while
+  // opening the channel.
+  uint32_t mMaybeResolveProxyAndBeginConnectCalled : 1;
+
+  // True if MaybeResolveProxyAndBeginConnect() has been called a second time.
+  uint32_t mMaybeResolveProxyAndBeginConnectCalledTwice : 1;
+
   // The origin of the top window, only valid when mTopWindowOriginComputed is
   // true.
   nsCString mTopWindowOrigin;
@@ -767,6 +778,20 @@ class nsHttpChannel final : public HttpBaseChannel,
 
   // Needed for accurate DNS timing
   RefPtr<nsDNSPrefetch> mDNSPrefetch;
+
+  struct DNSLookupCompleteResult {
+    nsCOMPtr<nsICancelable> mRequest;
+    nsCOMPtr<nsIDNSRecord> mRecord;
+    nsresult mStatus = NS_OK;
+    bool mClear = true;
+
+    void Clear();
+
+    bool IsClear() const {
+      return mClear && mRequest == nullptr && mRecord == nullptr &&
+             mStatus == NS_OK;
+    }
+  } mDNSLookupCompleteResult;
 
   uint32_t mPushedStreamId;
   RefPtr<HttpTransactionShell> mTransWithPushedStream;

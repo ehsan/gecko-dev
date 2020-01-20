@@ -394,6 +394,9 @@ nsHttpChannel::nsHttpChannel()
       mIsIsolated(0),
       mTopWindowOriginComputed(0),
       mHasCrossOriginOpenerPolicyMismatch(0),
+      mProxyResolutionStarted(0),
+      mMaybeResolveProxyAndBeginConnectCalled(0),
+      mMaybeResolveProxyAndBeginConnectCalledTwice(0),
       mPushedStreamId(0),
       mLocalBlocklist(false),
       mOnTailUnblock(nullptr),
@@ -3409,6 +3412,7 @@ nsresult nsHttpChannel::ContinueDoReplaceWithProxy(nsresult rv) {
 
 nsresult nsHttpChannel::ResolveProxy() {
   LOG(("nsHttpChannel::ResolveProxy [this=%p]\n", this));
+  mProxyResolutionStarted = 1;
 
   nsresult rv;
 
@@ -6658,6 +6662,20 @@ nsresult nsHttpChannel::AsyncOpenFinal(TimeStamp aTimeStamp) {
 nsresult nsHttpChannel::MaybeResolveProxyAndBeginConnect() {
   nsresult rv;
 
+  if (mMaybeResolveProxyAndBeginConnectCalled) {
+    if (!mMaybeResolveProxyAndBeginConnectCalledTwice) {
+      mMaybeResolveProxyAndBeginConnectCalledTwice = 1;
+      bool considerCanonicalName =
+          StaticPrefs::privacy_thirdparty_consider_canonical_hostname() ||
+          StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
+      if (mDNSLookupCompleteResult.IsClear() && considerCanonicalName) {
+        goto beginconnect;
+      }
+    }
+    return NS_OK;
+  }
+  mMaybeResolveProxyAndBeginConnectCalled = 1;
+
   // The common case for HTTP channels is to begin proxy resolution and return
   // at this point. The only time we know mProxyInfo already is if we're
   // proxying a non-http protocol like ftp. We don't need to discover proxy
@@ -6666,6 +6684,15 @@ nsresult nsHttpChannel::MaybeResolveProxyAndBeginConnect() {
     return NS_OK;
   }
 
+  if (!mDNSLookupCompleteResult.IsClear()) {
+    // If we have pending DNS lookup completion results, notify about them now.
+    Unused << OnLookupComplete(mDNSLookupCompleteResult.mRequest,
+                               mDNSLookupCompleteResult.mRecord,
+                               mDNSLookupCompleteResult.mStatus);
+    mDNSLookupCompleteResult.Clear();
+  }
+
+beginconnect:
   rv = BeginConnect();
   if (NS_FAILED(rv)) {
     CloseCacheEntry(false);
@@ -6930,15 +6957,9 @@ nsresult nsHttpChannel::BeginConnect() {
     ReEvaluateReferrerAfterTrackingStatusIsKnown();
   }
 
-  rv = MaybeStartDNSPrefetch();
+  rv = HandleDNSPrefetch();
   if (NS_FAILED(rv)) {
-    auto dnsStrategy = GetProxyDNSStrategy();
-    if (dnsStrategy & DNS_BLOCK_ON_ORIGIN_RESOLVE) {
-      // TODO: Should this be fatal?
-      return rv;
-    }
-    // Otherwise this shouldn't be fatal.
-    return NS_OK;
+    return rv;
   }
 
   rv = ContinueBeginConnectWithResult();
@@ -6958,7 +6979,26 @@ nsresult nsHttpChannel::BeginConnect() {
   return NS_OK;
 }
 
+nsresult nsHttpChannel::HandleDNSPrefetch() {
+  nsresult rv = MaybeStartDNSPrefetch();
+  if (NS_FAILED(rv)) {
+    auto dnsStrategy = GetProxyDNSStrategy();
+    if (dnsStrategy & DNS_BLOCK_ON_ORIGIN_RESOLVE) {
+      // TODO: Should this be fatal?
+      return rv;
+    }
+    // Otherwise this shouldn't be fatal.
+    return NS_OK;
+  }
+  return rv;
+}
+
 nsresult nsHttpChannel::MaybeStartDNSPrefetch() {
+  if (mDNSPrefetch) {
+    // DNS prefetch already started.
+    return NS_OK;
+  }
+
   // Start a DNS lookup very early in case the real open is queued the DNS can
   // happen in parallel. Do not do so in the presence of an HTTP proxy as
   // all lookups other than for the proxy itself are done by the proxy.
@@ -7258,7 +7298,10 @@ nsHttpChannel::OnProxyAvailable(nsICancelable* request, nsIChannel* channel,
        static_cast<uint32_t>(static_cast<nsresult>(mStatus))));
   mProxyRequest = nullptr;
 
-  nsresult rv;
+  nsresult rv = NS_OK;
+  bool considerCanonicalName =
+      StaticPrefs::privacy_thirdparty_consider_canonical_hostname() ||
+      StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
 
   // If status is a failure code, then it means that we failed to resolve
   // proxy info.  That is a non-fatal error assuming it wasn't because the
@@ -7267,6 +7310,12 @@ nsHttpChannel::OnProxyAvailable(nsICancelable* request, nsIChannel* channel,
 
   if (NS_SUCCEEDED(status)) mProxyInfo = pi;
 
+  RefPtr<nsHttpChannel> self(this);
+  auto CleanUp = [self](nsresult rv) {
+    self->CloseCacheEntry(false);
+    Unused << self->AsyncAbort(rv);
+  };
+
   if (!gHttpHandler->Active()) {
     LOG(
         ("nsHttpChannel::OnProxyAvailable [this=%p] "
@@ -7274,12 +7323,61 @@ nsHttpChannel::OnProxyAvailable(nsICancelable* request, nsIChannel* channel,
          this));
     rv = NS_ERROR_NOT_AVAILABLE;
   } else {
-    rv = BeginConnect();
+    if (!mDNSLookupCompleteResult.IsClear()) {
+      // If we have pending DNS lookup completion results, notify about them
+      // now.
+      Unused << OnLookupComplete(mDNSLookupCompleteResult.mRequest,
+                                 mDNSLookupCompleteResult.mRecord,
+                                 mDNSLookupCompleteResult.mStatus);
+      mDNSLookupCompleteResult.Clear();
+    }
+
+    // If our proxy resolution is also in progress, don't call BeginConnect()
+    // yet; we'll wait until we get a second call to
+    // MaybeResolveProxyAndBeginConnect(), and at that time we'll immediately
+    // call BeginConnect().  Otherwise we'll call BeginConnect() right here.
+    if ((!mMaybeResolveProxyAndBeginConnectCalled ||
+         (mMaybeResolveProxyAndBeginConnectCalled &&
+          mMaybeResolveProxyAndBeginConnectCalledTwice))) {
+      if (mDNSBlockingThenable) {
+        nsCOMPtr<nsISerialEventTarget> target(do_GetMainThread());
+        mDNSBlockingThenable->Then(
+            target, __func__,
+            [=](const nsCOMPtr<nsIDNSRecord>& aRec) {
+              nsresult rv = NS_DispatchToCurrentThread(NS_NewRunnableFunction(
+                  "nsHttpChannel::OnProxyAvailable", [=]() {
+                    nsresult rv = self->BeginConnect();
+
+                    if (NS_FAILED(rv)) {
+                      CleanUp(rv);
+                    }
+                  }));
+
+              if (NS_FAILED(rv)) {
+                CleanUp(rv);
+              }
+            },
+            [=](nsresult rv) { CleanUp(rv); });
+      } else {
+        rv = BeginConnect();
+
+        if (NS_FAILED(rv)) {
+          CleanUp(rv);
+        }
+      }
+    } else if (mMaybeResolveProxyAndBeginConnectCalled &&
+               !mMaybeResolveProxyAndBeginConnectCalledTwice &&
+               !considerCanonicalName) {
+      rv = BeginConnect();
+
+      if (NS_FAILED(rv)) {
+        CleanUp(rv);
+      }
+    }
   }
 
   if (NS_FAILED(rv)) {
-    CloseCacheEntry(false);
-    Unused << AsyncAbort(rv);
+    CleanUp(rv);
   }
   return rv;
 }
@@ -9385,11 +9483,42 @@ nsHttpChannel::OnLookupComplete(nsICancelable* request, nsIDNSRecord* rec,
                                 nsresult status) {
   MOZ_ASSERT(NS_IsMainThread(), "Expecting DNS callback on main thread.");
 
+  if (!mProxyInfo && !mProxyResolutionStarted && NeedsNetworkAccess()) {
+    // We have received the DNS lookup results before the BeginConnect call.
+    // This can happen when the WhenCanonicalHostNameAvailable() API has been
+    // used for example.  Save our result in order to play it back later when
+    // the connection info object becomes available.
+    MOZ_ASSERT(mDNSLookupCompleteResult.IsClear());
+    mDNSLookupCompleteResult.mRequest = request;
+    mDNSLookupCompleteResult.mRecord = rec;
+    mDNSLookupCompleteResult.mStatus = status;
+    mDNSLookupCompleteResult.mClear = false;
+
+    // At this point, check to see if we are very early during the process of
+    // opening the channel, to kick off the rest of the process.  This is
+    // necessary in case AsyncOpenFinal() is blocked on the promise returned
+    // from WhenCanonicalHostNameAvailable() becoming fullfilled before it can
+    // makeprogress.  Since we need the resolved proxy info here, we may need to
+    // kick off proxy resolution ourselves if DNS resolution happens early
+    // enough.
+    nsresult rv = MaybeResolveProxyAndBeginConnect();
+    if (NS_FAILED(rv)) {
+      CloseCacheEntry(false);
+      Unused << AsyncAbort(rv);
+    }
+
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsProxyInfo> proxyInfo = do_QueryInterface(mProxyInfo);
+  bool usingHttpProxy =
+      proxyInfo && (proxyInfo->IsHTTP() || proxyInfo->IsHTTPS());
+
   LOG(
       ("nsHttpChannel::OnLookupComplete [this=%p] prefetch complete%s%s: "
        "%s status[0x%" PRIx32 "]\n",
        this, mCaps & NS_HTTP_REFRESH_DNS ? ", refresh requested" : "",
-       mConnectionInfo->UsingHttpProxy() ? ", using HTTP proxy" : "",
+       usingHttpProxy ? ", using HTTP proxy" : "",
        NS_SUCCEEDED(status) ? "success" : "failure",
        static_cast<uint32_t>(status)));
 
@@ -9397,7 +9526,7 @@ nsHttpChannel::OnLookupComplete(nsICancelable* request, nsIDNSRecord* rec,
   // have been due to resolving canonical names.  We don't need to run the
   // logic in this branch in that case since the real name resolution is
   // handled by the proxy server.
-  if (!mConnectionInfo->UsingHttpProxy()) {
+  if (!usingHttpProxy) {
     // We no longer need the dns prefetch object. Note: mDNSPrefetch could be
     // validly null if OnStopRequest has already been called.
     // We only need the domainLookup timestamps when not loading from cache
@@ -10672,9 +10801,11 @@ void nsHttpChannel::PerformBackgroundCacheRevalidationNow() {
 
 NS_IMETHODIMP_(RefPtr<CanonicalNamePromise>)
 nsHttpChannel::WhenCanonicalHostNameAvailable() {
-  if (mDNSBlockingPromise.IsEmpty()) {
-    return HttpBaseChannel::WhenCanonicalHostNameAvailable();
+  nsresult rv = HandleDNSPrefetch();
+  if (NS_FAILED(rv) || !mDNSBlockingThenable) {
+    return CanonicalNamePromise::CreateAndReject(false, __func__);
   }
+
   return mDNSBlockingThenable->Then(
       GetCurrentThreadSerialEventTarget(), __func__,
       [](const DNSPromise::ResolveOrRejectValue& aValue) {
@@ -10686,6 +10817,13 @@ nsHttpChannel::WhenCanonicalHostNameAvailable() {
         }
         return CanonicalNamePromise::CreateAndReject(false, __func__);
       });
+}
+
+void nsHttpChannel::DNSLookupCompleteResult::Clear() {
+  mRequest = nullptr;
+  mRecord = nullptr;
+  mStatus = NS_OK;
+  mClear = true;
 }
 
 }  // namespace net
