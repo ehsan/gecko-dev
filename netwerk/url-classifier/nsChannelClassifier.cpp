@@ -246,6 +246,17 @@ bool nsChannelClassifier::StartInternalWorker(
     UC_LOG(("nsChannelClassifier[%p]: Classifying principal %s on channel[%p]",
             this, spec.get(), mChannel.get()));
   }
+  nsCOMPtr<nsIURI> principalURI;
+  aPrincipal->GetURI(getter_AddRefs(principalURI));
+  nsAutoCString host;
+  principalURI->GetAsciiHost(host);
+  bool print = host.EqualsASCII("omniture-ssl.walmart.com");
+
+  {
+    if (print) printf("### %s ", host.get());
+    if (print) printf("%s\n", PromiseFlatCString(aCanonicalHostName).get());
+  }
+
   // The classify is running in parent process, no need to give a valid event
   // target
   nsresult rv = aURIClassifier->Classify(

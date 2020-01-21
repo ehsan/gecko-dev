@@ -616,6 +616,12 @@ bool ContentBlocking::ShouldAllowAccessFor(nsPIDOMWindowInner* aWindow,
   MOZ_ASSERT(aWindow);
   MOZ_ASSERT(aURI);
 
+  nsAutoCString xxx;
+  aURI->GetAsciiHost(xxx);
+  if (xxx.EqualsLiteral("omniture-ssl.walmart.com")) {
+    printf("+++ omniture-ssl.walmart.com\n");
+  }
+
   // Let's avoid a null check on aRejectedReason everywhere else.
   uint32_t rejectedReason = 0;
   if (!aRejectedReason) {
@@ -839,6 +845,12 @@ bool ContentBlocking::ShouldAllowAccessFor(nsIChannel* aChannel, nsIURI* aURI,
                                            uint32_t* aRejectedReason) {
   MOZ_ASSERT(aURI);
   MOZ_ASSERT(aChannel);
+
+  nsAutoCString xxx;
+  aURI->GetAsciiHost(xxx);
+  if (xxx.EqualsLiteral("omniture-ssl.walmart.com")) {
+    printf("+++ omniture-ssl.walmart.com\n");
+  }
 
   // Let's avoid a null check on aRejectedReason everywhere else.
   uint32_t rejectedReason = 0;

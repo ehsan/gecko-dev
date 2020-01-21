@@ -9554,6 +9554,13 @@ nsHttpChannel::OnLookupComplete(nsICancelable* request, nsIDNSRecord* rec,
   if (!mDNSBlockingPromise.IsEmpty()) {
     if (NS_SUCCEEDED(status)) {
       nsCOMPtr<nsIDNSRecord> record(rec);
+      nsAutoCString name;
+      if (rec) {
+        rec->GetCanonicalName(name);
+        if (!name.IsEmpty()) {
+          //    printf("%s %s\n", name.get(), mSpec.get());
+        }
+      }
       mDNSBlockingPromise.Resolve(record, __func__);
     } else {
       mDNSBlockingPromise.Reject(status, __func__);

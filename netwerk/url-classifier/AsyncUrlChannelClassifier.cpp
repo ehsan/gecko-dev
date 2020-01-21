@@ -751,6 +751,12 @@ nsresult FeatureData::InitializeList(
     return rv;
   }
 
+  bool print = host.EqualsASCII("omniture-ssl.walmart.com");
+
+  if (print) printf("^^^ %s ", host.get());
+
+  if (print) printf("%s\n", PromiseFlatCString(aCanonicalHostName).get());
+
   bool found = false;
   nsAutoCString tableName;
   rv = mFeature->HasHostInPreferences(host, aListType, tableName, &found);
