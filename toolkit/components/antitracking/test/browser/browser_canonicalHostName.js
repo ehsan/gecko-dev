@@ -17,7 +17,10 @@ AntiTracking._createTask({
     document.cookie = "name=value";
     ok(document.cookie != "", "Nothing is blocked");
   },
-  extraPrefs: [["privacy.thirdparty.consider_top_canonical_hostname", true]],
+  extraPrefs: [
+    ["privacy.thirdparty.consider_canonical_hostname", false],
+    ["privacy.thirdparty.consider_top_canonical_hostname", true],
+  ],
   expectedBlockingNotifications: 0,
   runInPrivateWindow: false,
   iframeSandbox: null,

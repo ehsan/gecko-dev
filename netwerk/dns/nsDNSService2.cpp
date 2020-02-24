@@ -835,8 +835,9 @@ nsresult nsDNSService::AsyncResolveInternal(
     localDomain = mLocalDomains.GetEntry(aHostname);
   }
 
-  if (mozilla::StaticPrefs::
-          privacy_thirdparty_consider_top_canonical_hostname() &&
+  if ((mozilla::StaticPrefs::privacy_thirdparty_consider_canonical_hostname() ||
+       mozilla::StaticPrefs::
+           privacy_thirdparty_consider_top_canonical_hostname()) &&
       (flags & RESOLVE_SPECULATE)) {
     // When considering canonical domain names for privacy checks, always
     // resolve them upon speculation.

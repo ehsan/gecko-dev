@@ -169,7 +169,8 @@ nsresult ThirdPartyUtil::GetCanonicalHostNameFromWindow(
 
 bool ThirdPartyUtil::URIMatchesCanonicalHostName(nsIURI* aURI,
                                                  const nsACString& aName) {
-  if (!StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname() ||
+  if (!StaticPrefs::privacy_thirdparty_consider_canonical_hostname() ||
+      !StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname() ||
       !aURI) {
     return false;
   }
@@ -282,7 +283,8 @@ nsresult ThirdPartyUtil::CheckWindow(
   bool canonicalHostNameWasMaterial = false;
   bool considerCanonicalHostName =
       aConsiderations == CanonicalNameConsiderations::ConsiderCanonicalName &&
-      StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
+      (StaticPrefs::privacy_thirdparty_consider_canonical_hostname() ||
+       StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname());
   auto cleanUp = MakeScopeExit([&] {
     if (aCanonicalHostNameWasMaterial) {
       *aCanonicalHostNameWasMaterial = canonicalHostNameWasMaterial;
@@ -361,15 +363,18 @@ nsresult ThirdPartyUtil::CheckWindow(
     }
 
     if (result) {
-      nsAutoCString canonicalHostName;
+      nsAutoCString canonicalHostName, canonicalTopWindowHostName;
       if (considerCanonicalHostName) {
-        rv = GetCanonicalHostNameFromWindow(parent, canonicalHostName);
+        rv = GetCanonicalHostNameFromWindow(parent, canonicalHostName,
+                                            &canonicalTopWindowHostName);
         NS_ENSURE_SUCCESS(rv, rv);
       }
 
       if (considerCanonicalHostName &&
-          PrincipalMatchesCanonicalHostName(currentPrincipal,
-                                            canonicalHostName)) {
+          (PrincipalMatchesCanonicalHostName(currentPrincipal,
+                                             canonicalHostName) ||
+           PrincipalMatchesCanonicalHostName(currentPrincipal,
+                                             canonicalTopWindowHostName))) {
         canonicalHostNameWasMaterial = true;
       } else {
         *aResult = true;
@@ -405,14 +410,15 @@ nsresult ThirdPartyUtil::CheckChannel(
 
   bool considerCanonicalHostName =
       aConsiderations == CanonicalNameConsiderations::ConsiderCanonicalName &&
-      StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
+      (StaticPrefs::privacy_thirdparty_consider_canonical_hostname() ||
+       StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname());
   if (aCanonicalHostNameWasMaterial) {
     *aCanonicalHostNameWasMaterial = false;
   }
 
   nsresult rv;
   bool doForce = false;
-  nsAutoCString canonicalHost;
+  nsAutoCString canonicalTopHost, canonicalHost;
   nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal =
       do_QueryInterface(aChannel);
   if (httpChannelInternal) {
@@ -433,8 +439,13 @@ nsresult ThirdPartyUtil::CheckChannel(
     }
 
     if (considerCanonicalHostName) {
-      canonicalHost = httpChannelInternal->GetTopWindowCanonicalHostName();
+      canonicalTopHost = httpChannelInternal->GetTopWindowCanonicalHostName();
     }
+  }
+
+  nsCOMPtr<nsIChannelWithCanonicalName> cwcn = do_QueryInterface(aChannel);
+  if (cwcn && considerCanonicalHostName) {
+    canonicalHost = cwcn->GetCanonicalHostName();
   }
 
   bool parentIsThird = false;
@@ -472,7 +483,7 @@ nsresult ThirdPartyUtil::CheckChannel(
   // Only impact aCanonicalHostNameWasMaterial if our parent is a third-party,
   // otherwise even if we obtain a canonical host name match here it wouldn't
   // have made a difference anyway.
-  if (parentIsThird && URIMatchesCanonicalHostName(aURI, canonicalHost)) {
+  if (parentIsThird && URIMatchesCanonicalHostName(aURI, canonicalTopHost)) {
     parentIsThird = false;
     if (aCanonicalHostNameWasMaterial) {
       *aCanonicalHostNameWasMaterial = true;
@@ -488,7 +499,23 @@ nsresult ThirdPartyUtil::CheckChannel(
   }
 
   // Determine whether aURI is foreign with respect to channelURI.
-  return IsThirdPartyInternal(channelDomain, aURI, aResult);
+  rv = IsThirdPartyInternal(channelDomain, aURI, aResult);
+  if (NS_FAILED(rv)) return rv;
+
+  if (!*aResult && considerCanonicalHostName) {
+    // Try the canonical host name too.
+    rv = GetBaseDomainFromSchemeHost(EmptyCString(), canonicalHost,
+                                     channelDomain);
+    if (NS_FAILED(rv)) return rv;
+
+    rv = IsThirdPartyInternal(channelDomain, aURI, aResult);
+    if (NS_FAILED(rv)) return rv;
+
+    if (aCanonicalHostNameWasMaterial) {
+      *aCanonicalHostNameWasMaterial = true;
+    }
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP

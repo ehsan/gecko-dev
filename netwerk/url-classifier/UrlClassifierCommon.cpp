@@ -428,11 +428,18 @@ void UrlClassifierCommon::AnnotateChannel(nsIChannel* aChannel,
     return;
   }
 
+  bool canonicalHostNameWasMaterial = false;
   bool isThirdPartyWithTopLevelWinURI =
-      nsContentUtils::IsThirdPartyWindowOrChannel(nullptr, aChannel, chanURI);
+      nsContentUtils::IsThirdPartyWindowOrChannel(
+          nullptr, aChannel, chanURI,
+          CanonicalNameConsiderations::ConsiderCanonicalName,
+          &canonicalHostNameWasMaterial);
 
-  UC_LOG(("UrlClassifierCommon::AnnotateChannel, annotating channel[%p]",
-          aChannel));
+  UC_LOG(
+      ("UrlClassifierCommon::AnnotateChannel, annotating channel[%p], "
+       "thirdparty=%d, canonical host name was used=%d",
+       aChannel, (int)isThirdPartyWithTopLevelWinURI,
+       (int)canonicalHostNameWasMaterial));
 
   SetClassificationFlagsHelper(aChannel, aClassificationFlags,
                                isThirdPartyWithTopLevelWinURI);

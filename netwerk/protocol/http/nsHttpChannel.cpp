@@ -6726,6 +6726,7 @@ uint16_t nsHttpChannel::GetProxyDNSStrategy() {
   // If we need to consider the canonical name, we have to block on the prefetch
   // outcome to become available.
   bool considerCanonicalName =
+      StaticPrefs::privacy_thirdparty_consider_canonical_hostname() ||
       StaticPrefs::privacy_thirdparty_consider_top_canonical_hostname();
 
   if (!mProxyInfo) {

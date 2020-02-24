@@ -7657,6 +7657,11 @@
   value: false
   mirror: always
 
+- name: privacy.thirdparty.consider_canonical_hostname
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: privacy.thirdparty.consider_top_canonical_hostname
   type: RelaxedAtomicBool
   value: false

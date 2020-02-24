@@ -17,6 +17,7 @@ function setupTest(uri, cookies, loads) {
       {
         set: [
           ["network.cookie.cookieBehavior", 1],
+          ["privacy.thirdparty.consider_canonical_hostname", false],
           ["privacy.thirdparty.consider_top_canonical_hostname", false],
         ],
       },
